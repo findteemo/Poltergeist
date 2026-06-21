@@ -1,0 +1,178 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+mod platform;
+mod reminders;
+mod store;
+
+use reminders::{is_due, now_secs, Reminder};
+use std::collections::HashSet;
+use std::path::PathBuf;
+use std::sync::Mutex;
+use std::time::Duration;
+use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
+
+struct AppState {
+    reminders: Mutex<Vec<Reminder>>,
+    active: Mutex<HashSet<String>>, // ids currently shown, awaiting ack
+    path: PathBuf,
+}
+
+#[tauri::command]
+fn load_reminders(state: State<AppState>) -> Vec<Reminder> {
+    state.reminders.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn save_reminders(state: State<AppState>, reminders: Vec<Reminder>) {
+    {
+        let mut r = state.reminders.lock().unwrap();
+        *r = reminders;
+        store::save(&state.path, &r);
+    }
+    // prune active entries for reminders that were deleted
+    let ids: HashSet<String> = state
+        .reminders
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|r| r.id.clone())
+        .collect();
+    state.active.lock().unwrap().retain(|id| ids.contains(id));
+}
+
+#[tauri::command]
+fn ack_reminder(state: State<AppState>, id: String) {
+    let now = now_secs();
+    {
+        let mut r = state.reminders.lock().unwrap();
+        if let Some(pos) = r.iter().position(|r| r.id == id) {
+            if r[pos].fire_at.is_some() {
+                r.remove(pos); // one-shot: fired once, done
+            } else {
+                r[pos].last_fired = now;
+            }
+        }
+        store::save(&state.path, &r);
+    }
+    state.active.lock().unwrap().remove(&id);
+}
+
+#[tauri::command]
+fn quit_app(app: AppHandle) {
+    app.exit(0);
+}
+
+#[tauri::command]
+fn open_settings(app: AppHandle) {
+    if let Some(w) = app.get_webview_window("settings") {
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+}
+
+/// Single 10s tick loop. Emits `reminder-due` once per due reminder and holds it
+/// in `active` until acked, so it nudges gently instead of re-firing every tick.
+fn start_scheduler(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let mut tick = tokio::time::interval(Duration::from_secs(10));
+        loop {
+            tick.tick().await;
+            let now = now_secs();
+            let due: Vec<Reminder> = {
+                let state = app.state::<AppState>();
+                let reminders = state.reminders.lock().unwrap();
+                let mut active = state.active.lock().unwrap();
+                let mut out = Vec::new();
+                for r in reminders.iter() {
+                    if is_due(r, now) && !active.contains(&r.id) {
+                        active.insert(r.id.clone());
+                        out.push(r.clone());
+                    }
+                }
+                out
+            };
+            for r in due {
+                let _ = app.emit("reminder-due", serde_json::json!({ "id": r.id, "label": r.label }));
+            }
+        }
+    });
+}
+
+/// Launch at login via the HKCU Run key. Native reg.exe, no extra crate.
+/// Idempotent — rewrites the same value each launch. Points at whatever exe is
+/// running (dev build or installed). Remove with:
+///   reg delete HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v Poltergeist /f
+#[cfg(windows)]
+fn register_autostart() {
+    use std::os::windows::process::CommandExt;
+    if let Ok(exe) = std::env::current_exe() {
+        let _ = std::process::Command::new("reg")
+            .args([
+                "add",
+                r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
+                "/v",
+                "Poltergeist",
+                "/t",
+                "REG_SZ",
+                "/d",
+                &format!("\"{}\"", exe.display()), // quote: installed path has spaces
+                "/f",
+            ])
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW — no console flash
+            .output();
+    }
+}
+
+fn main() {
+    // ponytail: trim WebView2's RAM — cap renderer processes and drop the GPU
+    // process. Cuts the process count/footprint; raise the limit if the UI lags.
+    #[cfg(windows)]
+    std::env::set_var(
+        "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+        // autoplay-policy: the ghost window never takes focus, so without this
+        // WebView2 blocks the reminder chime as un-gestured audio.
+        "--disable-gpu --disable-software-rasterizer --renderer-process-limit=1 --disable-features=Translate --autoplay-policy=no-user-gesture-required",
+    );
+
+    tauri::Builder::default()
+        .setup(|app| {
+            let path = store::path();
+            let reminders = store::load(&path);
+            app.manage(AppState {
+                reminders: Mutex::new(reminders),
+                active: Mutex::new(HashSet::new()),
+                path,
+            });
+            // ghost window/taskbar icon (raw RGBA generated by scripts/make_icon.js)
+            const ICON_RGBA: &[u8] = include_bytes!("../icons/icon.rgba");
+            let icon = || tauri::image::Image::new(ICON_RGBA, 32, 32);
+            if let Some(win) = app.get_webview_window("character") {
+                platform::make_nonactivating(&win);
+                let _ = win.set_icon(icon());
+            }
+            // closing the settings window just hides it, so it stays reusable
+            if let Some(settings) = app.get_webview_window("settings") {
+                let _ = settings.set_icon(icon());
+                let s = settings.clone();
+                settings.on_window_event(move |e| {
+                    if let WindowEvent::CloseRequested { api, .. } = e {
+                        api.prevent_close();
+                        let _ = s.hide();
+                    }
+                });
+            }
+            #[cfg(windows)]
+            register_autostart();
+            start_scheduler(app.handle().clone());
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            load_reminders,
+            save_reminders,
+            ack_reminder,
+            open_settings,
+            quit_app
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running Poltergeist");
+}

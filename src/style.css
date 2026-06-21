@@ -1,0 +1,138 @@
+:root {
+  --cell: 9px;
+  --void: #0e0a14;
+  --panel: #1b1230;
+  --purple: #9d7bd8;
+  --purple-bright: #c4a6f5;
+  --purple-deep: #3d2459;
+  --ghost: #ece4fa;
+  --ghost-shade: #c9b8ec;
+  --ghost-outline: #2a1b3d;
+  --eye: #19102b;
+  --blush: #c4a6f5;
+  --tear: #8fc7f5;
+  --text: #ddd0f5;
+  --muted: #8d79b3;
+  --mono: "Cascadia Code", "Consolas", "SF Mono", "Menlo", monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  background: transparent;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  font-family: var(--mono);
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+#stage {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---- ghost ---- */
+.char {
+  display: grid;
+  grid-template-columns: repeat(16, var(--cell));
+  grid-template-rows: repeat(16, var(--cell));
+  animation: bob 3.6s ease-in-out infinite, aura 2.8s ease-in-out infinite;
+  cursor: grab;
+}
+.char:active { cursor: grabbing; }
+.char .px { pointer-events: none; image-rendering: pixelated; }
+
+@keyframes bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+@keyframes aura {
+  0%, 100% { filter: drop-shadow(0 0 5px rgba(157, 123, 216, 0.45)) drop-shadow(0 5px 5px rgba(0, 0, 0, 0.55)); }
+  50% { filter: drop-shadow(0 0 11px rgba(196, 166, 245, 0.85)) drop-shadow(0 5px 6px rgba(0, 0, 0, 0.55)); }
+}
+
+/* celebrate: a happy hop on dismiss (overrides bob+aura while it runs) */
+/* translate-only so the pixel grid stays crisp (scale/rotate reveal cell seams) */
+.char.celebrate { animation: celebrate 0.6s ease-out 2; }
+@keyframes celebrate {
+  0%   { transform: translateY(0); }
+  25%  { transform: translateY(-14px); }
+  45%  { transform: translateY(0); }
+  65%  { transform: translateY(-7px); }
+  100% { transform: translateY(0); }
+}
+
+/* sad: dropped the aura, slower droopy bob, dimmed + cool tint */
+.char.sad {
+  animation: bob 5.5s ease-in-out infinite;
+  filter: grayscale(0.45) brightness(0.82) drop-shadow(0 4px 4px rgba(0, 0, 0, 0.55));
+}
+
+/* ---- speech bubble: chunky pixel window ---- */
+.bubble {
+  max-width: 200px;
+  background: var(--panel);
+  color: var(--text);
+  border: 3px solid var(--purple);
+  border-radius: 0; /* pixel, no rounding */
+  padding: 9px 13px 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+  box-shadow: 4px 4px 0 0 var(--purple-deep), 0 0 14px rgba(157, 123, 216, 0.35);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: none;
+  position: relative;
+  image-rendering: pixelated;
+}
+/* stepped pixel tail — a stair-stepped pyramid, on-grid (no diagonals) */
+.bubble::after {
+  content: "";
+  position: absolute;
+  top: 100%; /* hangs off the bottom border, same purple → reads as one frame */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 22px;
+  height: 12px;
+  background: var(--purple);
+  clip-path: polygon(
+    0 0, 100% 0,
+    100% 33.3%, 81.8% 33.3%,
+    81.8% 66.7%, 63.6% 66.7%,
+    63.6% 100%, 36.4% 100%,
+    36.4% 66.7%, 18.2% 66.7%,
+    18.2% 33.3%, 0 33.3%
+  );
+}
+.bubble.show {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+  cursor: pointer;
+  animation: flicker 3s ease-in-out infinite;
+}
+.bubble:hover { background: #241640; }
+.bubble .hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--purple);
+}
+
+@keyframes flicker {
+  0%, 100% { box-shadow: 4px 4px 0 0 var(--purple-deep), 0 0 14px rgba(157, 123, 216, 0.35); }
+  50% { box-shadow: 4px 4px 0 0 var(--purple-deep), 0 0 22px rgba(196, 166, 245, 0.6); }
+}
