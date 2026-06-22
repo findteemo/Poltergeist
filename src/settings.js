@@ -1,5 +1,5 @@
 const { invoke } = window.__TAURI__.core;
-const { emit } = window.__TAURI__.event;
+const { emit, listen } = window.__TAURI__.event;
 
 // ghost size: persisted in localStorage, pushed live to the character window
 const CELL_KEY = "charCell";
@@ -16,6 +16,33 @@ chimeEl.checked = localStorage.getItem("chimeMuted") !== "1"; // checked = chime
 chimeEl.addEventListener("change", () => {
   localStorage.setItem("chimeMuted", chimeEl.checked ? "0" : "1");
   emit("chime-toggle", chimeEl.checked);
+});
+
+// cry timer: minutes a reminder can sit ignored before the ghost reacts.
+// Pushed live to the character window (same pattern as char-cell/chime).
+const cryEl = document.getElementById("cry");
+cryEl.value = localStorage.getItem("cryMins") || "1";
+cryEl.addEventListener("input", () => {
+  const m = Math.min(10, Math.max(1, Number(cryEl.value) || 1));
+  localStorage.setItem("cryMins", m);
+  emit("cry-mins", m);
+});
+
+// launch-at-login: toggle the HKCU Run key via the backend. Default on.
+const autoEl = document.getElementById("autostart");
+autoEl.checked = localStorage.getItem("autostart") !== "0";
+autoEl.addEventListener("change", () => {
+  localStorage.setItem("autostart", autoEl.checked ? "1" : "0");
+  invoke("set_autostart", { enabled: autoEl.checked });
+});
+
+// tabs: plain show/hide, no router
+document.querySelectorAll(".tabbtn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tabbtn").forEach((b) => b.classList.toggle("active", b === btn));
+    document.querySelectorAll(".tab").forEach((t) =>
+      t.classList.toggle("active", t.id === "tab-" + btn.dataset.tab));
+  });
 });
 
 const listEl = document.getElementById("list");
@@ -44,24 +71,27 @@ function displayFor(secs) {
 function rowHtml(r, i) {
   const row = document.createElement("div");
   row.className = "row";
+  const pg = `<button class="pg ${r.poltergeist ? "on" : ""}" data-i="${i}" title="poltergeist mode — angry flames when ignored" aria-label="Poltergeist mode — angry flames when ignored" aria-pressed="${r.poltergeist ? "true" : "false"}">🔥</button>`;
   if (r.fire_at != null) {
     row.classList.add("sched");
     row.innerHTML = `
-      <input type="checkbox" data-i="${i}" class="en" ${r.enabled ? "checked" : ""} title="enabled" />
-      <input type="text" data-i="${i}" class="lbl" value="" placeholder="reminder text" />
-      <input type="datetime-local" data-i="${i}" class="at" value="${epochToLocalInput(r.fire_at)}" />
-      <button class="del" data-i="${i}" title="delete">✕</button>`;
+      <input type="checkbox" data-i="${i}" class="en" ${r.enabled ? "checked" : ""} title="enabled" aria-label="Reminder enabled" />
+      <input type="text" data-i="${i}" class="lbl" value="" placeholder="reminder text" aria-label="Reminder text" />
+      <input type="datetime-local" data-i="${i}" class="at" value="${epochToLocalInput(r.fire_at)}" aria-label="Fire at" />
+      ${pg}
+      <button class="del" data-i="${i}" title="delete" aria-label="Delete reminder">✕</button>`;
   } else {
     const d = displayFor(r.interval_secs);
     row.innerHTML = `
-      <input type="checkbox" data-i="${i}" class="en" ${r.enabled ? "checked" : ""} title="enabled" />
-      <input type="text" data-i="${i}" class="lbl" value="" placeholder="reminder text" />
-      <span><input type="number" min="1" step="any" data-i="${i}" class="iv" value="${d.value}" />
-      <select data-i="${i}" class="unit">
+      <input type="checkbox" data-i="${i}" class="en" ${r.enabled ? "checked" : ""} title="enabled" aria-label="Reminder enabled" />
+      <input type="text" data-i="${i}" class="lbl" value="" placeholder="reminder text" aria-label="Reminder text" />
+      <span><input type="number" min="1" step="any" data-i="${i}" class="iv" value="${d.value}" aria-label="Interval" />
+      <select data-i="${i}" class="unit" aria-label="Interval unit">
         <option value="min" ${d.unit === "min" ? "selected" : ""}>min</option>
         <option value="hr" ${d.unit === "hr" ? "selected" : ""}>hr</option>
       </select></span>
-      <button class="del" data-i="${i}" title="delete">✕</button>`;
+      ${pg}
+      <button class="del" data-i="${i}" title="delete" aria-label="Delete reminder">✕</button>`;
   }
   row.querySelector(".lbl").value = r.label;
   return row;
@@ -88,6 +118,11 @@ listEl.addEventListener("click", (e) => {
   if (e.target.classList.contains("del")) {
     reminders.splice(+e.target.dataset.i, 1);
     render();
+  } else if (e.target.classList.contains("pg")) {
+    const i = +e.target.dataset.i;
+    reminders[i].poltergeist = !reminders[i].poltergeist;
+    e.target.classList.toggle("on", reminders[i].poltergeist);
+    e.target.setAttribute("aria-pressed", reminders[i].poltergeist ? "true" : "false");
   }
 });
 
@@ -101,6 +136,7 @@ document.getElementById("add").addEventListener("click", () => {
     enabled: true,
     last_fired: nowSecs(),
     fire_at: null,
+    poltergeist: false,
   });
   render();
 });
@@ -113,6 +149,7 @@ document.getElementById("addSched").addEventListener("click", () => {
     enabled: true,
     last_fired: nowSecs(),
     fire_at: nowSecs() + 3600, // default an hour out, so the picker isn't in the past
+    poltergeist: false,
   });
   render();
 });
@@ -129,6 +166,63 @@ document.getElementById("quit").addEventListener("click", () => invoke("quit_app
 // frameless window has no titlebar X — hide it ourselves (stays reusable)
 document.getElementById("close").addEventListener("click", () =>
   window.__TAURI__.window.getCurrentWindow().hide());
+
+// ---- to-do list ----
+// One-shot tasks, kept in shared localStorage (visible to the floating window).
+// No timer, no ghost effect. Edits/deletes here sync live via `todos-changed`.
+const todoListEl = document.getElementById("todolist");
+let todos = [];
+const TODO_SRC = "settings"; // tag emits so we ignore our own echo (it'd clobber typing)
+
+function saveTodos() {
+  invoke("save_todos", { todos }); // persists to todos.json
+  emit("todos-changed", { src: TODO_SRC, todos });
+}
+// changes from the floating list window: refresh ours (skip our own echo)
+listen("todos-changed", (e) => {
+  if (!e.payload || e.payload.src === TODO_SRC) return;
+  todos = e.payload.todos;
+  renderTodos();
+});
+function renderTodos() {
+  todoListEl.replaceChildren();
+  todos.forEach((t, i) => {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.style.gridTemplateColumns = "1fr 24px"; // just text + delete here
+    row.innerHTML = `
+      <input type="text" class="tlbl" data-i="${i}" placeholder="task" aria-label="Task" />
+      <button class="del" data-i="${i}" title="delete" aria-label="Delete task">✕</button>`;
+    row.querySelector(".tlbl").value = t.text;
+    todoListEl.appendChild(row);
+  });
+}
+todoListEl.addEventListener("input", (e) => {
+  if (e.target.classList.contains("tlbl")) { todos[+e.target.dataset.i].text = e.target.value; saveTodos(); }
+});
+todoListEl.addEventListener("click", (e) => {
+  if (e.target.classList.contains("del")) { todos.splice(+e.target.dataset.i, 1); saveTodos(); renderTodos(); }
+});
+document.getElementById("addTodo").addEventListener("click", () => {
+  todos.push({ id: newId(), text: "" });
+  saveTodos();
+  renderTodos();
+});
+// load from disk; migrate any old localStorage todos once, then drop them
+invoke("load_todos").then((t) => {
+  todos = t && t.length ? t : JSON.parse(localStorage.getItem("todos") || "[]");
+  if ((!t || !t.length) && todos.length) saveTodos();
+  localStorage.removeItem("todos");
+  renderTodos();
+});
+
+// show/hide the floating to-do list window
+const todoVisEl = document.getElementById("todoVis");
+todoVisEl.checked = localStorage.getItem("todoVisible") === "1";
+todoVisEl.addEventListener("change", () => {
+  localStorage.setItem("todoVisible", todoVisEl.checked ? "1" : "0");
+  invoke("set_todo_visible", { visible: todoVisEl.checked });
+});
 
 (async () => {
   reminders = await invoke("load_reminders");

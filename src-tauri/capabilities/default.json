@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions for character and settings windows",
-  "windows": ["character", "settings"],
+  "description": "Permissions for character, settings and to-do windows",
+  "windows": ["character", "settings", "todo"],
   "permissions": [
     "core:default",
     "core:event:default",
@@ -10,6 +10,6 @@
     "core:window:allow-start-dragging",
     "core:window:allow-set-focus",
     "core:window:allow-hide",
-    "core:webview:allow-create-webview-window"
+    "core:window:allow-set-position"
   ]
 }

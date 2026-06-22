@@ -3,8 +3,10 @@
 A lightweight, cozy desktop companion. A little pixel **ghost** floats on your
 desktop and gently nudges you to drink water, fix your posture, and stretch —
 **without ever stealing focus** from what you're doing. He celebrates when you
-tick a task off and sulks when you ignore him. Cozy spectral theme: black +
-purple, monospace type, chunky pixel borders.
+tick a task off, sulks when you ignore him, and — for reminders you mark
+**poltergeist** — turns angry with purple flames until you listen. Comes with a
+matching floating to-do list. Cozy spectral theme: black + purple, monospace
+type, chunky pixel borders.
 
 Built with **Tauri 2** (Rust + the OS webview), so it stays light on RAM.
 
@@ -20,7 +22,8 @@ Built with **Tauri 2** (Rust + the OS webview), so it stays light on RAM.
 > Windows may show a SmartScreen warning for an unsigned app — *More info →
 > Run anyway*.
 
-**Stop it launching at login:**
+**Stop it launching at login:** untick *launch at login* in the settings
+*settings* tab, or remove the registry key directly:
 
 ```powershell
 reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v Poltergeist /f
@@ -29,29 +32,37 @@ reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v Poltergeist /
 ## Features
 
 - **Pixel ghost overlay** — always-on-top, draggable, transparent, with a pulsing
-  purple aura and a gentle blink.
-- **Moods** — the ghost does a happy hop when you dismiss a reminder, and turns sad
-  (frown + tear) if you leave one unanswered for over a minute.
+  purple aura and a gentle blink. Remembers where you left it.
+- **Moods** — the ghost does a happy hop when you dismiss a reminder, turns sad
+  (frown + tear) if you ignore one too long, and goes **angry with purple flames**
+  for reminders you flag as *poltergeist*. The "cry after N minutes" delay is
+  adjustable.
 - **Focus-safe nudges** — acknowledge with a single click on the speech bubble; it
   **never tabs you out** of your active app (Windows `WS_EX_NOACTIVATE`; macOS
   non-activating floating panel).
 - **Custom reminders** — add / edit / delete your own, each with its own interval,
-  plus one-shot "remind me at a specific time" reminders. Right-click the ghost to
-  open settings.
+  plus one-shot "remind me at a specific time" reminders, and a per-reminder
+  poltergeist flag. Right-click the ghost to open settings.
+- **Floating to-do list** — a tiny optional window of tasks; click one to finish
+  it. Edit tasks from the settings *to-do* tab; toggle the window on or off.
 - **Gentle chime** on each nudge (toggleable), and an adjustable ghost size.
-- **Auto-launch at login** (Windows).
-- Reminders persist to a JSON file in your OS config dir.
+- **Auto-launch at login** (Windows) — toggleable in settings, survives restarts.
+- Reminders and to-dos persist to JSON files in your OS config dir; windows
+  remember their positions.
+- **Accessibility** — keyboard-focusable controls and `prefers-reduced-motion`
+  support (no blink/animation when reduced motion is on).
 
 ## Configuration & data
 
-Settings live in the OS config dir (kept under `cozy-reminder` for backwards
+Data lives in the OS config dir (kept under `cozy-reminder` for backwards
 compatibility with earlier versions):
 
-- Windows: `%APPDATA%\cozy-reminder\reminders.json`
-- macOS: `~/Library/Application Support/cozy-reminder/reminders.json`
+- Windows: `%APPDATA%\cozy-reminder\` (`reminders.json`, `todos.json`)
+- macOS: `~/Library/Application Support/cozy-reminder/`
 
-Delete this file to reset to defaults. A corrupt or missing file re-seeds the
-defaults rather than crashing.
+Delete `reminders.json` to reset reminders to defaults. A corrupt, missing, or
+empty reminders file re-seeds the defaults rather than crashing. Window positions
+and a few UI prefs are kept in the webview's local storage instead.
 
 ## Build from source
 
