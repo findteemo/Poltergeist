@@ -41,6 +41,47 @@ html, body {
 }
 
 /* ---- ghost ---- */
+#ghostwrap { position: relative; }
+
+/* poltergeist flames: purple tongues behind the ghost, only when angry */
+#flames {
+  position: absolute;
+  inset: -6px -4px 0;
+  z-index: -1;
+  display: none;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 3px;
+  pointer-events: none;
+}
+#flames.lit { display: flex; }
+#flames span {
+  width: calc(var(--cell) * 1.4);
+  height: calc(var(--cell) * 3);
+  background: linear-gradient(to top, var(--purple-deep) 0%, var(--purple) 45%, var(--purple-bright) 100%);
+  border-radius: 45% 45% 18% 18% / 65% 65% 35% 35%;
+  filter: drop-shadow(0 0 6px rgba(196, 166, 245, 0.8));
+  animation: flameflicker 0.5s ease-in-out infinite;
+}
+#flames span:nth-child(2) { height: calc(var(--cell) * 4); animation-delay: 0.12s; }
+#flames span:nth-child(3) { height: calc(var(--cell) * 5); animation-delay: 0.06s; }
+#flames span:nth-child(4) { height: calc(var(--cell) * 4); animation-delay: 0.18s; }
+#flames span:nth-child(5) { height: calc(var(--cell) * 3); animation-delay: 0.24s; }
+@keyframes flameflicker {
+  0%, 100% { transform: scaleY(1) translateY(0); opacity: 0.8; }
+  50% { transform: scaleY(1.35) translateY(-4px); opacity: 1; }
+}
+
+/* angry: drop the bob for a tight shake + a hot purple glow */
+.char.angry {
+  animation: angryshake 0.16s steps(2) infinite;
+  filter: drop-shadow(0 0 9px rgba(196, 166, 245, 0.95)) drop-shadow(0 0 16px rgba(157, 123, 216, 0.75));
+}
+@keyframes angryshake {
+  0% { transform: translate(-1px, 0); }
+  100% { transform: translate(1px, 0); }
+}
+
 .char {
   display: grid;
   grid-template-columns: repeat(16, var(--cell));
@@ -135,4 +176,17 @@ html, body {
 @keyframes flicker {
   0%, 100% { box-shadow: 4px 4px 0 0 var(--purple-deep), 0 0 14px rgba(157, 123, 216, 0.35); }
   50% { box-shadow: 4px 4px 0 0 var(--purple-deep), 0 0 22px rgba(196, 166, 245, 0.6); }
+}
+
+/* accessibility: the ghost is always on screen, so honor reduced-motion by
+   killing the perpetual bob/aura/flicker/flames. Keep a static glow so it still
+   reads as spectral. (JS blink is gated separately in main.js.) */
+@media (prefers-reduced-motion: reduce) {
+  .char, .char.celebrate, .char.angry {
+    animation: none;
+    filter: drop-shadow(0 0 7px rgba(157, 123, 216, 0.6)) drop-shadow(0 5px 5px rgba(0, 0, 0, 0.55));
+  }
+  .char.sad { animation: none; } /* keeps its own dimmed filter */
+  #flames span { animation: none; }
+  .bubble, .bubble.show { transition: none; animation: none; }
 }

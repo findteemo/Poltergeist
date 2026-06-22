@@ -11,6 +11,10 @@ pub struct Reminder {
     // serde default keeps old reminders.json (without this field) loading fine.
     #[serde(default)]
     pub fire_at: Option<i64>,
+    // poltergeist mode: when ignored too long the ghost turns angry (flames)
+    // instead of sad. serde default keeps old reminders.json loading.
+    #[serde(default)]
+    pub poltergeist: bool,
 }
 
 pub fn now_secs() -> i64 {
@@ -51,6 +55,7 @@ pub fn default_reminders() -> Vec<Reminder> {
             // ponytail: stagger first fires by a minute each so they don't cluster
             last_fired: now + (i as i64) * 60,
             fire_at: None,
+            poltergeist: false,
         })
         .collect()
 }
@@ -67,6 +72,7 @@ mod tests {
             enabled,
             last_fired,
             fire_at: None,
+            poltergeist: false,
         }
     }
 

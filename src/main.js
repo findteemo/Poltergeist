@@ -29,6 +29,8 @@ function buildSprite(blink, mood) {
   else if (mood === "happy") { // ^ ^ curved-up eyes
     put(4, 8, "e"); put(5, 7, "e"); put(6, 8, "e");
     put(9, 8, "e"); put(10, 7, "e"); put(11, 8, "e");
+  } else if (mood === "angry") { // \  / slanted brows
+    put(4, 7, "e"); put(5, 8, "e"); put(11, 7, "e"); put(10, 8, "e");
   } else {
     put(5, 7, "e"); put(5, 8, "e"); put(10, 7, "e"); put(10, 8, "e");
     if (mood === "sad") { put(11, 11, "t"); put(11, 12, "t"); } // tear down the cheek
@@ -36,6 +38,7 @@ function buildSprite(blink, mood) {
   // mouth (none when normal)
   if (mood === "happy") { put(6, 11, "o"); put(7, 12, "o"); put(8, 12, "o"); put(9, 11, "o"); } // smile
   else if (mood === "sad") { put(6, 12, "o"); put(7, 11, "o"); put(8, 11, "o"); put(9, 12, "o"); } // frown
+  else if (mood === "angry") { put(6, 11, "o"); put(7, 11, "o"); put(8, 11, "o"); put(9, 11, "o"); } // gritted
   put(4, 10, "p"); put(11, 10, "p"); // blush
   return g;
 }
@@ -46,6 +49,7 @@ const COLOR = {
 };
 
 const charEl = document.getElementById("char");
+const flamesEl = document.getElementById("flames");
 
 // ghost size: cell px set from settings; remembered locally so it survives restart
 const CELL_KEY = "charCell";
@@ -56,6 +60,8 @@ let mood = "normal";
 function setMood(m) {
   mood = m;
   charEl.classList.toggle("sad", m === "sad");
+  charEl.classList.toggle("angry", m === "angry");
+  flamesEl.classList.toggle("lit", m === "angry"); // purple flames in poltergeist mode
   render(false);
 }
 // quick happy hop on dismiss, then settle back to normal
@@ -81,14 +87,32 @@ function render(blink) {
 }
 
 render(false);
-// gentle blink every few seconds
-setInterval(() => { render(true); setTimeout(() => render(false), 160); }, 4200);
+// gentle blink every few seconds — gated on reduced-motion (it's real motion)
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
+let blinkTimer;
+function startBlink() {
+  clearInterval(blinkTimer);
+  if (reduceMotion.matches) return;
+  blinkTimer = setInterval(() => { render(true); setTimeout(() => render(false), 160); }, 4200);
+}
+startBlink();
+reduceMotion.addEventListener("change", () => { render(false); startBlink(); });
 
 // ---- reminders ----
 const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 
 listen("char-cell", (e) => { localStorage.setItem(CELL_KEY, e.payload); setCell(e.payload); });
+
+// apply launch-at-login pref on startup so the toggle persists across restarts
+invoke("set_autostart", { enabled: localStorage.getItem("autostart") !== "0" });
+// restore the to-do list window if it was left showing
+invoke("set_todo_visible", { visible: localStorage.getItem("todoVisible") === "1" });
+
+// cry timer: minutes a bubble can sit ignored before the ghost reacts. Settings
+// pushes changes live; default 1 min (was hardcoded 60s).
+let cryMs = (Number(localStorage.getItem("cryMins")) || 1) * 60000;
+listen("cry-mins", (e) => { cryMs = Number(e.payload) * 60000; });
 
 // ---- chime ----
 // Gentle two-note WebAudio chime on fire — no audio asset to bundle. Mute state
@@ -100,7 +124,7 @@ listen("chime-toggle", (e) => { muted = !e.payload; localStorage.setItem(MUTE_KE
 let audioCtx;
 function chime() {
   if (muted) return;
-  audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+  audioCtx = audioCtx || new AudioContext();
   const now = audioCtx.currentTime;
   [[660, 0], [880, 0.16]].forEach(([freq, at]) => {
     const osc = audioCtx.createOscillator();
@@ -124,22 +148,23 @@ const bubbleText = bubble.querySelector(".text");
 // first, which then stays stuck in the backend `active` set and never re-fires.
 const queue = [];
 let currentId = null;
-let sadTimer;
+let moodTimer;
 
 function showNext() {
-  clearTimeout(sadTimer);
+  clearTimeout(moodTimer);
   const next = queue.shift();
   if (!next) {
     currentId = null;
     bubble.classList.remove("show");
-    if (mood === "sad") setMood("normal");
+    if (mood === "sad" || mood === "angry") setMood("normal");
     return;
   }
   currentId = next.id;
   bubbleText.textContent = next.label;
   bubble.classList.add("show");
   chime();
-  sadTimer = setTimeout(() => setMood("sad"), 60000); // ignored too long → ghost gets sad
+  // ignored too long → ghost gets sad, or angry+flames for poltergeist reminders
+  moodTimer = setTimeout(() => setMood(next.poltergeist ? "angry" : "sad"), cryMs);
 }
 
 listen("reminder-due", (e) => {
@@ -149,7 +174,7 @@ listen("reminder-due", (e) => {
 
 bubble.addEventListener("click", async () => {
   if (!currentId) return;
-  clearTimeout(sadTimer);
+  clearTimeout(moodTimer);
   await invoke("ack_reminder", { id: currentId });
   celebrate();
   showNext();

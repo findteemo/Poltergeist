@@ -13,7 +13,7 @@ Theme: cozy spectral, black + purple, monospace type, chunky pixel borders.
 
 ```sh
 cargo run            # dev launch
-cargo test           # unit tests (reminders::tests::due_logic)
+cargo test           # unit tests (reminders due logic + store reseed)
 cargo build --release
 cargo tauri build      # exe + installers (msi + nsis) in target/release/bundle/
 node scripts/make_icon.js   # regenerate icons/icon.ico from the sprite
@@ -23,16 +23,27 @@ No Node build step — the frontend is static files in `src/`.
 
 ## Layout
 
-- `src-tauri/src/main.rs` — window setup, Tauri commands, scheduler wiring,
-  `register_autostart()` (HKCU Run key via `reg.exe`).
-- `src-tauri/src/reminders.rs` — `Reminder` model, `is_due`, defaults (+ the test).
-- `src-tauri/src/store.rs` — JSON load/save in the OS config dir.
+- `src-tauri/src/main.rs` — window setup (3 windows), Tauri commands, scheduler
+  wiring, `register_autostart()`/`set_autostart()` (HKCU Run key via `reg.exe`),
+  `load_todos`/`save_todos`, `set_todo_visible`. State is `.manage()`d **on the
+  builder**, not in `setup` — a webview can fire IPC before `setup` runs.
+- `src-tauri/src/reminders.rs` — `Reminder` model (incl. the `poltergeist` flag),
+  `is_due`, defaults (+ the test).
+- `src-tauri/src/store.rs` — JSON load/save in the OS config dir; an empty list
+  reseeds defaults (+ a test). To-dos persist as raw JSON in `todos.json`.
 - `src-tauri/src/platform/{win,mac}.rs` — non-activating window flags.
 - `src/index.html|main.js|style.css` — the ghost overlay. Sprite is built
-  procedurally in `buildSprite(blink, mood)`; moods (`normal|happy|sad`) drive the
-  face. Celebrate/sad logic and the reminder queue live in `main.js`.
-- `src/settings.html|settings.js` — reminders editor (dark spectral theme),
-  flex-column layout: only the list scrolls, with a themed scrollbar.
+  procedurally in `buildSprite(blink, mood)`; moods (`normal|happy|sad|angry`)
+  drive the face. Celebrate/sad/angry logic and the reminder queue live in
+  `main.js`; `#flames` lights up in poltergeist mode.
+- `src/settings.html|settings.js` — tabbed editor (reminder / to-do / settings),
+  dark spectral theme. Flex-column layout: only the active tab's list scrolls,
+  with a themed scrollbar.
+- `src/todo.html|todo.js` — floating to-do list window (non-activating, no ghost).
+  Click a task to finish it; edits sync with the settings to-do tab via the
+  `todos-changed` event.
+- `src/winpos.js` — remembers each window's on-screen position across launches
+  (localStorage keyed by window label). Loaded by all three windows.
 - `src-tauri/scripts/make_icon.js` — generates `icons/icon.ico` (exe/shortcut
   icon) **and** `icons/icon.rgba` (runtime window icon via `Image::new`) from the
   **same ghost sprite**. Keep its `buildSprite()` in sync with `src/main.js`.
@@ -53,29 +64,41 @@ For GitHub: installers live under `target/` (gitignored) — distribute them as
 ## Ghost moods (frontend)
 
 `buildSprite(blink, mood)` swaps the face: `happy` (curved eyes + smile),
-`sad` (frown + tear), `normal`. In `main.js`:
+`sad` (frown + tear), `angry` (slanted brows + gritted mouth), `normal`. In
+`main.js`:
 - Dismissing a bubble → `celebrate()`: happy face + a translate-only bounce
   (`.char.celebrate`), settles back after ~1.2s. **Translate only** — `scale`/
   `rotate` on the pixel grid expose seams between cells.
-- A shown bubble starts a 60s timer; if it elapses unacked → `setMood("sad")`.
-  Cleared on dismiss or when the bubble closes.
+- A shown bubble starts a timer (`cryMs`, settable in settings, default 1 min);
+  if it elapses unacked → `setMood("sad")`, or `setMood("angry")` + lit `#flames`
+  for a **poltergeist** reminder. Cleared on dismiss or when the bubble closes.
+- Blinking is gated on `prefers-reduced-motion`.
 
 ## Auto-launch at login
 
 `register_autostart()` (Windows only) writes the running exe path to
 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` under value `Poltergeist`,
 via native `reg.exe` (no extra crate; `CREATE_NO_WINDOW` so no console flash).
-Idempotent, runs every launch, and registers **whatever exe is running** (dev or
-installed). Remove: `reg delete "HKCU\...\Run" /v Poltergeist /f`.
+Registers **whatever exe is running** (dev or installed). Now toggleable: the
+"launch at login" checkbox calls `set_autostart(enabled)`, and the char window
+re-applies the saved pref on every load — **the registry key IS the state**, so
+the toggle survives restarts. Remove manually:
+`reg delete "HKCU\...\Run" /v Poltergeist /f`.
 
 ## Hard-won gotchas (don't relearn these)
 
-- **Two windows, both defined in `tauri.conf.json`.** The `settings` window starts
-  `visible:false`; `open_settings` just `.show()`+`.set_focus()`. Creating it at
-  runtime with `WebviewWindowBuilder` rendered **blank white** in dev — config
-  windows load their URL reliably, runtime ones didn't.
-- **Closing settings hides it** (CloseRequested → `prevent_close()` + `hide()`) so
-  it stays reusable. Don't let it get destroyed.
+- **Three windows, all defined in `tauri.conf.json`** (`character`, `settings`,
+  `todo`). `settings` and `todo` start `visible:false`; `open_settings` /
+  `set_todo_visible` just `.show()`/`.hide()`. Creating windows at runtime with
+  `WebviewWindowBuilder` rendered **blank white** in dev — config windows load
+  their URL reliably, runtime ones didn't. (That's why the
+  `allow-create-webview-window` capability is gone.)
+- **Closing settings or to-do hides it** (CloseRequested → `prevent_close()` +
+  `hide()`) so it stays reusable. Don't let it get destroyed. The to-do "show
+  list window" toggle is the real switch; its close button only hides.
+- **`AppState` is managed on the builder, not in `setup`.** A window's webview
+  can fire IPC before `setup`'s `manage()` runs, which raced as "state not
+  managed". Build the state up front and `.manage()` it before `.setup()`.
 - **Focus preservation is the whole point.** Windows: `WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW`
   via raw FFI in `platform/win.rs` (do NOT add the `windows` crate — its version
   conflicts with tauri's `hwnd()` type). macOS: non-activating NSPanel in
@@ -108,9 +131,14 @@ fires by 1 min each.
 
 ## Persistence
 
-`reminders.json` in `dirs::config_dir()/cozy-reminder/`. Corrupt/missing → seed
-defaults, never crash. The dir name is intentionally **`cozy-reminder`** (not the
-new product name) so existing users keep their reminders after the rename.
+`reminders.json` (and `todos.json`) in `dirs::config_dir()/cozy-reminder/`.
+Corrupt / missing / **empty** reminders → seed defaults, never crash (an empty
+list would mean the ghost never nudges). To-dos are stored as raw JSON — no Rust
+struct to keep in sync. The dir name is intentionally **`cozy-reminder`** (not
+the new product name) so existing users keep their data after the rename.
+
+Window positions live in each webview's `localStorage` (`winpos:<label>`), not in
+the config dir.
 
 ## Style
 
