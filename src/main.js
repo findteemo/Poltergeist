@@ -102,7 +102,23 @@ reduceMotion.addEventListener("change", () => { render(false); startBlink(); });
 const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 
-listen("char-cell", (e) => { localStorage.setItem(CELL_KEY, e.payload); setCell(e.payload); });
+listen("char-cell", (e) => { localStorage.setItem(CELL_KEY, e.payload); setCell(e.payload); scheduleReport(); });
+
+// click-through: report which rects are interactive (ghost + any visible bubble)
+// so the rest of the transparent window passes clicks through to the app below.
+// Padded to cover the bob/celebrate motion; rAF so layout is settled first.
+function reportHit() {
+  const pad = 12;
+  const rects = [];
+  for (const el of [charEl, bubble.classList.contains("show") ? bubble : null]) {
+    if (!el) continue;
+    const r = el.getBoundingClientRect();
+    rects.push([r.left - pad, r.top - pad, r.width + pad * 2, r.height + pad * 2]);
+  }
+  invoke("set_hit_regions", { regions: rects });
+}
+const scheduleReport = () => requestAnimationFrame(reportHit);
+scheduleReport(); // initial: ghost only
 
 // apply launch-at-login pref on startup so the toggle persists across restarts
 invoke("set_autostart", { enabled: localStorage.getItem("autostart") !== "0" });
@@ -158,11 +174,13 @@ function showNext() {
     currentId = null;
     bubble.classList.remove("show");
     if (mood === "sad" || mood === "angry") setMood("normal");
+    scheduleReport(); // bubble gone — shrink the clickable area back to the ghost
     return;
   }
   currentId = next.id;
   bubbleText.textContent = next.label;
   bubble.classList.add("show");
+  scheduleReport(); // bubble now interactive — include it
   chime();
   // ignored too long → ghost gets sad, or angry+flames for poltergeist reminders
   // (update bubbles don't sulk — they just wait for a click)

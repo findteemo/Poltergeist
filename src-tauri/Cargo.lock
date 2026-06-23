@@ -2393,7 +2393,7 @@ dependencies = [
 
 [[package]]
 name = "poltergeist"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "cocoa",
  "dirs 5.0.1",

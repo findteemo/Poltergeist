@@ -3,7 +3,7 @@
 #[cfg(windows)]
 mod win;
 #[cfg(windows)]
-pub use win::make_nonactivating;
+pub use win::{cursor_pos, make_nonactivating};
 
 #[cfg(target_os = "macos")]
 mod mac;

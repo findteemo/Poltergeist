@@ -25,17 +25,20 @@ No Node build step — the frontend is static files in `src/`.
 
 - `src-tauri/src/main.rs` — window setup (3 windows), Tauri commands, scheduler
   wiring, `register_autostart()`/`set_autostart()` (HKCU Run key via `reg.exe`),
-  `load_todos`/`save_todos`, `set_todo_visible`. State is `.manage()`d **on the
-  builder**, not in `setup` — a webview can fire IPC before `setup` runs.
+  `load_todos`/`save_todos`, `set_todo_visible`, `set_hit_regions` +
+  `start_click_through` (the click-through poll, see below). State is `.manage()`d
+  **on the builder**, not in `setup` — a webview can fire IPC before `setup` runs.
 - `src-tauri/src/reminders.rs` — `Reminder` model (incl. the `poltergeist` flag),
   `is_due`, defaults (+ the test).
 - `src-tauri/src/store.rs` — JSON load/save in the OS config dir; an empty list
   reseeds defaults (+ a test). To-dos persist as raw JSON in `todos.json`.
-- `src-tauri/src/platform/{win,mac}.rs` — non-activating window flags.
+- `src-tauri/src/platform/{win,mac}.rs` — non-activating window flags;
+  `win.rs` also has `cursor_pos()` (`GetCursorPos` FFI) for the click-through poll.
 - `src/index.html|main.js|style.css` — the ghost overlay. Sprite is built
   procedurally in `buildSprite(blink, mood)`; moods (`normal|happy|sad|angry`)
   drive the face. Celebrate/sad/angry logic and the reminder queue live in
-  `main.js`; `#flames` lights up in poltergeist mode.
+  `main.js`; `#flames` lights up in poltergeist mode. `reportHit()` tells Rust
+  which rects (ghost + visible bubble) stay clickable — see Click-through below.
 - `src/settings.html|settings.js` — tabbed editor (reminder / to-do / settings),
   dark spectral theme. Flex-column layout: only the active tab's list scrolls,
   with a themed scrollbar.
@@ -119,6 +122,28 @@ Registers **whatever exe is running** (dev or installed). Now toggleable: the
 re-applies the saved pref on every load — **the registry key IS the state**, so
 the toggle survives restarts. Remove manually:
 `reg delete "HKCU\...\Run" /v Poltergeist /f`.
+
+## Click-through (transparent overlay)
+
+The character window is a fixed 240×260 transparent box but the ghost only fills
+the bottom-center — so the empty space used to swallow clicks meant for apps
+underneath. Fix: the window is **click-through except over the ghost / an open
+bubble**.
+
+- A `windows`-only poll (`start_click_through`, 50ms tokio loop) reads the global
+  cursor (`platform::cursor_pos` → `GetCursorPos`), converts it to the window's
+  CSS px (subtract `outer_position`, divide by `scale_factor`), and toggles
+  `win.set_ignore_cursor_events(!inside)`.
+- The frontend owns the geometry: `reportHit()` in `main.js` sends the ghost's
+  (and a visible bubble's) rects via `set_hit_regions`, padded 12px for the
+  bob/celebrate motion. It re-reports on load, bubble show/hide, and ghost-size
+  change. Rects are window-relative, so dragging the window doesn't invalidate them.
+- **Why poll instead of JS hover events:** once the whole window is click-through
+  the webview gets *no* mouse events, and Tauri v2 has no "forward events" flag —
+  so re-entry over the ghost can only be detected OS-side. Empty rects (before the
+  frontend reports) keep the window solid so the ghost is never click-through.
+- Windows-only; mac/other fall back to the old fully-solid behavior. `point_in_any`
+  has a unit test.
 
 ## Hard-won gotchas (don't relearn these)
 

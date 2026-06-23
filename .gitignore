@@ -1,2 +1,5 @@
 /src-tauri/target
 /src-tauri/gen
+
+# never commit the updater signing key (lives in ~/.tauri, but guard anyway)
+*.key

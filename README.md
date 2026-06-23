@@ -37,7 +37,9 @@ reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v Poltergeist /
 ## Features
 
 - **Pixel ghost overlay** — always-on-top, draggable, transparent, with a pulsing
-  purple aura and a gentle blink. Remembers where you left it.
+  purple aura and a gentle blink. Remembers where you left it. **Click-through:**
+  only the ghost (and an open bubble) catch clicks — the empty space around him
+  passes them straight to whatever app is underneath.
 - **Moods** — the ghost does a happy hop when you dismiss a reminder, turns sad
   (frown + tear) if you ignore one too long, and goes **angry with purple flames**
   for reminders you flag as *poltergeist*. The "cry after N minutes" delay is
