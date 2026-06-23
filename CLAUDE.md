@@ -61,6 +61,41 @@ locked `poltergeist.exe` (the app auto-starts at login now, so it's often runnin
 For GitHub: installers live under `target/` (gitignored) — distribute them as
 **Release assets**, don't commit binaries. The README links to `../../releases`.
 
+## Auto-update (GitHub Releases)
+
+Uses `tauri-plugin-updater` (Rust-side only — the static frontend has no bundler
+to import the JS plugin). On startup `start_update_check` queries the GitHub
+`releases/latest/download/latest.json` manifest; if a newer version exists it
+emits `update-available`, and the ghost shows a one-off **"✨ vX ready — click to
+update"** bubble (queued like a reminder, sentinel id `__update__`, no sulk
+timer). Clicking calls the `install_update` command → download + install +
+`app.restart()`.
+
+**One-time signing-key setup (required before the next release):**
+1. `cargo tauri signer generate -w ~/.tauri/poltergeist.key` — keep the private
+   key **secret**, never commit it.
+2. Paste the printed **public** key into `tauri.conf.json` →
+   `plugins.updater.pubkey` (replaces `REPLACE_WITH_TAURI_UPDATER_PUBLIC_KEY`).
+3. Build with the private key in the env so artifacts get signed:
+   `TAURI_SIGNING_PRIVATE_KEY=$(cat ~/.tauri/poltergeist.key)` (+
+   `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if you set one) then `cargo tauri build`.
+   `createUpdaterArtifacts: true` makes it emit the signed `*-setup.exe` + a
+   `.sig` file.
+
+**Each release:** upload the NSIS `*-setup.exe`, and a `latest.json` asset:
+```json
+{ "version": "1.1.0", "notes": "...", "pub_date": "<RFC3339>",
+  "platforms": { "windows-x86_64": {
+    "signature": "<contents of the .sig file>",
+    "url": "https://github.com/findteemo/Poltergeist/releases/download/v1.1.0/Poltergeist_1.1.0_x64-setup.exe" } } }
+```
+
+**Caveat for already-installed v1.0 users:** v1.0 shipped *without* the updater,
+so it can't auto-update itself. They must manually install the first
+updater-enabled build (≥ v1.1) once; auto-update works from then on. Say so in
+that release's notes. Dev (`cargo run`) is unaffected — the check fails quietly
+when the pubkey/endpoint isn't live.
+
 ## Ghost moods (frontend)
 
 `buildSprite(blink, mood)` swaps the face: `happy` (curved eyes + smile),
