@@ -149,6 +149,7 @@ const bubbleText = bubble.querySelector(".text");
 const queue = [];
 let currentId = null;
 let moodTimer;
+const UPDATE_ID = "__update__"; // sentinel: this bubble installs an update, not a reminder
 
 function showNext() {
   clearTimeout(moodTimer);
@@ -164,7 +165,9 @@ function showNext() {
   bubble.classList.add("show");
   chime();
   // ignored too long → ghost gets sad, or angry+flames for poltergeist reminders
-  moodTimer = setTimeout(() => setMood(next.poltergeist ? "angry" : "sad"), cryMs);
+  // (update bubbles don't sulk — they just wait for a click)
+  if (next.id !== UPDATE_ID)
+    moodTimer = setTimeout(() => setMood(next.poltergeist ? "angry" : "sad"), cryMs);
 }
 
 listen("reminder-due", (e) => {
@@ -175,9 +178,25 @@ listen("reminder-due", (e) => {
 bubble.addEventListener("click", async () => {
   if (!currentId) return;
   clearTimeout(moodTimer);
+  if (currentId === UPDATE_ID) {
+    bubbleText.textContent = "updating…";
+    try {
+      await invoke("install_update"); // app relaunches on success
+    } catch (e) {
+      bubbleText.textContent = "update failed";
+      setTimeout(showNext, 1600); // don't leave the bubble stuck
+    }
+    return;
+  }
   await invoke("ack_reminder", { id: currentId });
   celebrate();
   showNext();
+});
+
+// Rust found a newer GitHub release — show a one-off "update ready" bubble.
+listen("update-available", (e) => {
+  queue.push({ id: UPDATE_ID, label: `✨ v${e.payload} ready — click to update` });
+  if (!currentId) showNext();
 });
 
 charEl.addEventListener("contextmenu", (e) => {

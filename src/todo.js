@@ -51,6 +51,8 @@ document.querySelector(".bar").addEventListener("mousedown", (e) => {
   appWindow.startDragging();
 });
 
-// ponytail: close just hides; the settings "show list" toggle stays the real
-// switch, so its checkbox may read stale-on after this. Re-toggle to resync.
-document.getElementById("close").addEventListener("click", () => appWindow.hide());
+// close just hides; tell settings so its "show list" toggle flips off to match.
+document.getElementById("close").addEventListener("click", () => {
+  appWindow.hide();
+  emit("todo-visibility", false);
+});

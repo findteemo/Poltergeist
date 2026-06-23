@@ -223,6 +223,16 @@ todoVisEl.addEventListener("change", () => {
   localStorage.setItem("todoVisible", todoVisEl.checked ? "1" : "0");
   invoke("set_todo_visible", { visible: todoVisEl.checked });
 });
+// keep the toggle honest with the real window state (it self-hides via its own
+// X button). Re-sync on every focus + when the to-do window tells us it hid.
+function setTodoVis(v) {
+  todoVisEl.checked = v;
+  localStorage.setItem("todoVisible", v ? "1" : "0");
+}
+async function syncTodoVis() { setTodoVis(await invoke("todo_visible")); }
+syncTodoVis();
+window.__TAURI__.window.getCurrentWindow().onFocusChanged((e) => { if (e.payload) syncTodoVis(); });
+listen("todo-visibility", (e) => setTodoVis(!!e.payload));
 
 (async () => {
   reminders = await invoke("load_reminders");

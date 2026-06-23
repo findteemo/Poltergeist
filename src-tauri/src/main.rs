@@ -93,6 +93,15 @@ fn set_todo_visible(app: AppHandle, visible: bool) {
     }
 }
 
+/// Actual visibility of the to-do window — settings reads this to keep its
+/// "show list" toggle honest after the to-do window self-hides (its X button).
+#[tauri::command]
+fn todo_visible(app: AppHandle) -> bool {
+    app.get_webview_window("todo")
+        .and_then(|w| w.is_visible().ok())
+        .unwrap_or(false)
+}
+
 /// Enable/disable launch-at-login. Frontend calls this on its own startup with
 /// the saved pref, so the toggle survives restarts (registry key IS the state).
 #[cfg(windows)]
@@ -118,6 +127,37 @@ fn set_autostart(enabled: bool) {
 #[cfg(not(windows))]
 #[tauri::command]
 fn set_autostart(_enabled: bool) {}
+
+/// Check GitHub Releases for a newer build on startup. If one exists, nudge the
+/// ghost (the frontend shows a one-off "update ready" bubble). The download +
+/// install happens in `install_update` only when the user clicks that bubble.
+fn start_update_check(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        use tauri_plugin_updater::UpdaterExt;
+        if let Ok(updater) = app.updater() {
+            if let Ok(Some(update)) = updater.check().await {
+                let _ = app.emit("update-available", update.version.clone());
+            }
+        }
+    });
+}
+
+/// Download + install the pending update, then relaunch. Re-checks instead of
+/// caching the Update handle (it isn't Send across awaits); the manifest is tiny.
+// ponytail: double network check (startup + here) is cheaper than the plumbing to cache.
+#[tauri::command]
+async fn install_update(app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let updater = app.updater().map_err(|e| e.to_string())?;
+    if let Some(update) = updater.check().await.map_err(|e| e.to_string())? {
+        update
+            .download_and_install(|_, _| {}, || {})
+            .await
+            .map_err(|e| e.to_string())?;
+        app.restart();
+    }
+    Ok(())
+}
 
 /// Single 10s tick loop. Emits `reminder-due` once per due reminder and holds it
 /// in `active` until acked, so it nudges gently instead of re-firing every tick.
@@ -191,6 +231,7 @@ fn main() {
     let path = store::path();
     let reminders = store::load(&path);
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState {
             reminders: Mutex::new(reminders),
             active: Mutex::new(HashSet::new()),
@@ -231,6 +272,7 @@ fn main() {
             // autostart is now driven by the frontend (char window) on load, so the
             // user's toggle persists across restarts. See set_autostart.
             start_scheduler(app.handle().clone());
+            start_update_check(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -239,7 +281,9 @@ fn main() {
             ack_reminder,
             open_settings,
             set_todo_visible,
+            todo_visible,
             set_autostart,
+            install_update,
             load_todos,
             save_todos,
             quit_app

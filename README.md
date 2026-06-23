@@ -22,6 +22,11 @@ Built with **Tauri 2** (Rust + the OS webview), so it stays light on RAM.
 > Windows may show a SmartScreen warning for an unsigned app — *More info →
 > Run anyway*.
 
+**Updates:** from this version on, Poltergeist checks for new releases at
+startup and the ghost offers a *"✨ update ready"* bubble — click it to install
+and relaunch. (Installs of **v1.0** predate the updater, so update to this
+release manually once; it's automatic after that.)
+
 **Stop it launching at login:** untick *launch at login* in the settings
 *settings* tab, or remove the registry key directly:
 
