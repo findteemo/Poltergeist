@@ -76,6 +76,23 @@
       color: var(--text); background: var(--void);
     }
     .opt input[type=number]:focus { outline: none; border-color: var(--purple); }
+    /* calendar tab: stacked label + full-width URL field, and a hint */
+    .calfield {
+      display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px;
+      font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted);
+    }
+    .calfield input {
+      border: 2px solid var(--purple-deep); border-radius: 0; padding: 6px 7px;
+      font-family: var(--mono); font-size: 11px; color: var(--text); background: var(--void);
+      text-transform: none; letter-spacing: 0;
+    }
+    .calfield input:focus { outline: none; border-color: var(--purple); }
+    .calhint {
+      font-size: 9px; color: var(--muted); letter-spacing: 0.3px; line-height: 1.5;
+      margin: 6px 0 0; text-transform: none;
+    }
+    .calstatus { font-size: 10px; letter-spacing: 0.3px; margin: 8px 0 0; min-height: 13px; color: var(--purple-bright); }
+    .calstatus.err { color: #e89; }
     /* frameless window: header doubles as the drag handle (no OS title bar) */
     .titlebar { display: flex; align-items: flex-start; justify-content: space-between; cursor: grab; }
     .titlebar:active { cursor: grabbing; }
@@ -187,7 +204,7 @@
   <div class="titlebar" data-tauri-drag-region>
     <div data-tauri-drag-region>
       <h1 data-tauri-drag-region>✦ Poltergeist ✦</h1>
-      <p class="sub" data-tauri-drag-region>gentle nudges from your little ghost</p>
+      <p class="sub" data-tauri-drag-region>gentle nudges from your little ghost · <span id="ver"></span></p>
     </div>
     <button id="close" title="close" aria-label="Close settings">✕</button>
   </div>
@@ -195,6 +212,7 @@
   <div class="tabbar">
     <button class="tabbtn active" data-tab="reminder">reminder</button>
     <button class="tabbtn" data-tab="todo">to-do</button>
+    <button class="tabbtn" data-tab="calendar">calendar</button>
     <button class="tabbtn" data-tab="settings">settings</button>
   </div>
 
@@ -218,6 +236,26 @@
       <div class="optrow">
         <label for="todoVis">show list window</label>
         <input type="checkbox" id="todoVis" />
+      </div>
+    </section>
+
+    <!-- CALENDAR (Google Calendar, read-only ICS feed) -->
+    <section class="tab" id="tab-calendar">
+      <label class="calfield">
+        <span>google calendar ICS url</span>
+        <input type="url" id="calUrl" placeholder="https://calendar.google.com/calendar/ical/.../basic.ics" aria-label="Google Calendar secret ICS URL" />
+      </label>
+      <div class="sizerow opt">
+        <label for="calLead">nudge before</label>
+        <input type="number" id="calLead" min="0" max="120" step="1" />
+        <span class="mins">min</span>
+      </div>
+      <button class="add" id="calRefresh">↻ refresh now</button>
+      <p class="calstatus" id="calStatus" role="status" aria-live="polite"></p>
+      <p class="calhint">Google Calendar → Settings → your calendar → “Secret address in iCal format”. Read-only — nothing is written back.</p>
+      <div class="optrow">
+        <label for="calVis">show calendar window</label>
+        <input type="checkbox" id="calVis" />
       </div>
     </section>
 

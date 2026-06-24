@@ -1,6 +1,6 @@
 [package]
 name = "poltergeist"
-version = "1.0.2"
+version = "1.1.0"
 edition = "2021"
 description = "A cozy desktop reminder companion"
 
@@ -14,6 +14,12 @@ serde_json = "1"
 tokio = { version = "1", features = ["time", "rt", "macros"] }
 dirs = "5"
 tauri-plugin-updater = "2"
+# Google Calendar (read-only ICS feed): blocking HTTPS + ICS parse + recurrence.
+ureq = "2"
+icalendar = "0.17"
+rrule = "0.14"
+chrono = "0.4"
+chrono-tz = "0.10"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.26"

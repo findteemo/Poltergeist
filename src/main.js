@@ -183,8 +183,8 @@ function showNext() {
   scheduleReport(); // bubble now interactive — include it
   chime();
   // ignored too long → ghost gets sad, or angry+flames for poltergeist reminders
-  // (update bubbles don't sulk — they just wait for a click)
-  if (next.id !== UPDATE_ID)
+  // (update + calendar bubbles don't sulk — they just wait for a click)
+  if (next.id !== UPDATE_ID && !next.id.startsWith("__cal__"))
     moodTimer = setTimeout(() => setMood(next.poltergeist ? "angry" : "sad"), cryMs);
 }
 
@@ -204,6 +204,12 @@ bubble.addEventListener("click", async () => {
       bubbleText.textContent = "update failed";
       setTimeout(showNext, 1600); // don't leave the bubble stuck
     }
+    return;
+  }
+  // calendar nudges have no backing reminder — just dismiss (no ack_reminder).
+  if (currentId.startsWith("__cal__")) {
+    celebrate();
+    showNext();
     return;
   }
   await invoke("ack_reminder", { id: currentId });

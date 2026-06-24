@@ -32,6 +32,11 @@ No Node build step — the frontend is static files in `src/`.
   `is_due`, defaults (+ the test).
 - `src-tauri/src/store.rs` — JSON load/save in the OS config dir; an empty list
   reseeds defaults (+ a test). To-dos persist as raw JSON in `todos.json`.
+- `src-tauri/src/calendar.rs` — Google Calendar (read-only ICS feed). Fetches the
+  secret `.ics` URL (`ureq`), parses it (`icalendar`), expands recurring events
+  (`rrule`) over a ±window, caches `Vec<CalEvent>`. `due_nudges` turns upcoming
+  events into bubble ids; `calendar.json` holds `{ url, lead_minutes }`. See the
+  Google Calendar section (+ tests for due/RRULE/window).
 - `src-tauri/src/platform/{win,mac}.rs` — non-activating window flags;
   `win.rs` also has `cursor_pos()` (`GetCursorPos` FFI) for the click-through poll.
 - `src/index.html|main.js|style.css` — the ghost overlay. Sprite is built
@@ -45,6 +50,10 @@ No Node build step — the frontend is static files in `src/`.
 - `src/todo.html|todo.js` — floating to-do list window (non-activating, no ghost).
   Click a task to finish it; edits sync with the settings to-do tab via the
   `todos-changed` event.
+- `src/calendar.html|calendar.js` — floating calendar window (non-activating, no
+  ghost): a month grid (dots on days with events, click a day to filter) over an
+  agenda list (next 7 days by default). Read-only; events come from
+  `load_calendar_events`, refreshed on the `calendar-updated` event.
 - `src/winpos.js` — remembers each window's on-screen position across launches
   (localStorage keyed by window label). Loaded by all three windows.
 - `src-tauri/scripts/make_icon.js` — generates `icons/icon.ico` (exe/shortcut
@@ -147,9 +156,14 @@ bubble**.
 
 ## Hard-won gotchas (don't relearn these)
 
-- **Three windows, all defined in `tauri.conf.json`** (`character`, `settings`,
-  `todo`). `settings` and `todo` start `visible:false`; `open_settings` /
-  `set_todo_visible` just `.show()`/`.hide()`. Creating windows at runtime with
+- **Four windows, all defined in `tauri.conf.json`** (`character`, `settings`,
+  `todo`, `calendar`). `settings`, `todo`, and `calendar` start `visible:false`;
+  `open_settings` / `set_todo_visible` / `set_calendar_visible` just
+  `.show()`/`.hide()`. **A new window must also be added to
+  `capabilities/default.json`'s `windows` array** — Tauri v2 scopes permissions
+  per window, so a missing one silently can't `invoke`, use events, or
+  `hide()`/`startDragging()` (looks like "the new UI does nothing / won't
+  close"). Creating windows at runtime with
   `WebviewWindowBuilder` rendered **blank white** in dev — config windows load
   their URL reliably, runtime ones didn't. (That's why the
   `allow-create-webview-window` capability is gone.)
@@ -189,9 +203,35 @@ Each is held in an `active` set (shown, not re-fired) until acked. Ack sets
 `last_fired = now` (or removes a one-shot) and persists. Defaults stagger first
 fires by 1 min each.
 
+The same tick also scans cached calendar events (see below): one within
+`lead_minutes` and not already in `active` emits a `reminder-due` bubble with id
+`__cal__<uid>__<start>`. Calendar bubbles reuse the whole reminder bubble path
+but **don't** sulk and **aren't** acked server-side — the frontend dismisses
+`__cal__…` ids without calling `ack_reminder`. Past `__cal__` ids are pruned from
+`active` each tick.
+
+## Google Calendar (read-only ICS)
+
+`calendar.rs`. The user pastes their Google "Secret address in iCal format" URL
+into the settings **Calendar** tab (`save_calendar_config` → `calendar.json`).
+**No OAuth** — read-only feed access only. A background thread
+(`start_calendar_sync`, plain `std::thread`, 10-min loop — blocking HTTPS has no
+business on the 10s tokio tick) fetches via `ureq`, parses with `icalendar`,
+expands recurrences with `rrule` over `now-31d … now+60d`, and swaps the cached
+`Vec<CalEvent>` in **only on success** (a failed fetch keeps the last good cache,
+so offline never blanks the view), then emits `calendar-updated`. Saving the
+config triggers an immediate re-fetch, so "refresh now" is just a re-save.
+
+Gotchas: recurrences expand at a fixed UTC offset (can drift an hour across a DST
+boundary — fine for nudges); floating/all-day times are treated as UTC. Both are
+marked `// ponytail:` with the upgrade path. ICS parsing + RRULE are the wheels
+not to reinvent — hence the three crates.
+
 ## Persistence
 
-`reminders.json` (and `todos.json`) in `dirs::config_dir()/cozy-reminder/`.
+`reminders.json`, `todos.json`, and `calendar.json` (`{ url, lead_minutes }`,
+Rust-owned because the feed is fetched with no window open) in
+`dirs::config_dir()/cozy-reminder/`.
 Corrupt / missing / **empty** reminders → seed defaults, never crash (an empty
 list would mean the ghost never nudges). To-dos are stored as raw JSON — no Rust
 struct to keep in sync. The dir name is intentionally **`cozy-reminder`** (not

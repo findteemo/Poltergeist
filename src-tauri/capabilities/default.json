@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions for character, settings and to-do windows",
-  "windows": ["character", "settings", "todo"],
+  "description": "Permissions for character, settings, to-do and calendar windows",
+  "windows": ["character", "settings", "todo", "calendar"],
   "permissions": [
     "core:default",
     "core:event:default",

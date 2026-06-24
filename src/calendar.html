@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Poltergeist · calendar</title>
+  <style>
+    :root {
+      --void: #0e0a14;
+      --panel: #1b1230;
+      --row: #221636;
+      --purple: #9d7bd8;
+      --purple-bright: #c4a6f5;
+      --purple-deep: #3d2459;
+      --text: #ddd0f5;
+      --muted: #8d79b3;
+      --mono: "Cascadia Code", "Consolas", "SF Mono", "Menlo", monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: transparent; overflow: hidden; font-family: var(--mono); }
+    .panel {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      background: var(--void);
+      border: 3px solid var(--purple);
+      box-shadow: 4px 4px 0 0 var(--purple-deep), 0 0 14px rgba(157,123,216,0.35);
+      color: var(--text);
+      padding: 10px;
+      background-image:
+        radial-gradient(120% 80% at 0% 0%, rgba(157,123,216,0.10), transparent 55%),
+        radial-gradient(120% 80% at 100% 100%, rgba(196,166,245,0.08), transparent 55%);
+    }
+    .bar { display: flex; align-items: center; justify-content: space-between; cursor: grab; margin-bottom: 8px; }
+    .bar:active { cursor: grabbing; }
+    .title {
+      font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+      color: var(--purple-bright); text-shadow: 0 0 10px rgba(157,123,216,0.5);
+    }
+    #close {
+      border: 2px solid var(--purple-deep); background: var(--void); color: var(--purple);
+      cursor: pointer; font-size: 12px; line-height: 1; padding: 2px 5px; font-family: var(--mono);
+    }
+    #close:hover { border-color: #c77; color: #e89; }
+    #close:focus-visible { outline: 2px solid var(--purple-bright); outline-offset: 2px; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+
+    /* month grid */
+    .month { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .month .lbl { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--purple-bright); }
+    .nav {
+      border: 2px solid var(--purple-deep); background: var(--void); color: var(--purple);
+      cursor: pointer; font-size: 11px; line-height: 1; padding: 2px 6px; font-family: var(--mono);
+    }
+    .nav:hover { border-color: var(--purple); color: var(--purple-bright); }
+    .nav:focus-visible { outline: 2px solid var(--purple-bright); outline-offset: 2px; }
+    .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 10px; }
+    .dow { font-size: 8px; text-align: center; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+    .cell {
+      position: relative; aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+      font-size: 10px; color: var(--text); background: var(--row); border: 1px solid transparent; cursor: pointer;
+    }
+    .cell.blank { background: transparent; cursor: default; }
+    .cell:not(.blank):hover { border-color: var(--purple); }
+    .cell.today { color: var(--purple-bright); font-weight: 700; }
+    .cell.sel { border-color: var(--purple); background: var(--purple-deep); }
+    .cell.has::after {
+      content: ""; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%);
+      width: 4px; height: 4px; background: var(--purple-bright); border-radius: 50%;
+    }
+
+    /* agenda list */
+    .agenda-head { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 6px; }
+    #list { flex: 1; min-height: 0; overflow-y: auto; margin-right: -6px; padding-right: 6px; }
+    #list::-webkit-scrollbar { width: 10px; }
+    #list::-webkit-scrollbar-track { background: var(--void); }
+    #list::-webkit-scrollbar-thumb { background: var(--purple-deep); border: 2px solid var(--void); }
+    #list::-webkit-scrollbar-thumb:hover { background: var(--purple); }
+    .daygroup { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: var(--purple); margin: 8px 0 4px; }
+    .item {
+      background: var(--row); border: 2px solid var(--purple-deep);
+      padding: 6px 8px; margin-bottom: 6px; font-size: 11px;
+      box-shadow: 3px 3px 0 0 rgba(0,0,0,0.35); word-break: break-word;
+    }
+    .item .time { color: var(--purple-bright); font-size: 9px; letter-spacing: 1px; }
+    .empty { color: var(--muted); font-size: 11px; text-align: center; margin-top: 18px; letter-spacing: 1px; }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <div class="bar">
+      <span class="title">🗓 calendar</span>
+      <button id="close" title="hide" aria-label="Hide calendar">✕</button>
+    </div>
+
+    <div class="month">
+      <button class="nav" id="prev" aria-label="Previous month">‹</button>
+      <span class="lbl" id="mlabel"></span>
+      <button class="nav" id="next" aria-label="Next month">›</button>
+    </div>
+    <div class="grid" id="grid"></div>
+
+    <div class="agenda-head" id="ahead">next 7 days</div>
+    <div id="list"></div>
+  </div>
+  <script src="winpos.js"></script>
+  <script src="calendar.js"></script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod calendar;
 mod platform;
 mod reminders;
 mod store;
@@ -19,6 +20,12 @@ struct AppState {
     // and any visible bubble. Everything else in the transparent window is made
     // click-through. The frontend reports these via `set_hit_regions`.
     hit: Mutex<Vec<(f64, f64, f64, f64)>>,
+    // Google Calendar (read-only ICS): cached events + the feed config, plus the
+    // path to calendar.json. The sync thread refreshes the cache; the scheduler
+    // turns due events into bubbles; the calendar window renders the list.
+    cal_events: Mutex<Vec<calendar::CalEvent>>,
+    cal_config: Mutex<calendar::CalConfig>,
+    cal_path: PathBuf,
 }
 
 fn point_in_any(rects: &[(f64, f64, f64, f64)], x: f64, y: f64) -> bool {
@@ -109,6 +116,77 @@ fn start_click_through(app: AppHandle) {
                 ignoring = want;
             }
         }
+    });
+}
+
+// ---- Google Calendar (read-only ICS feed) ----
+
+#[tauri::command]
+fn load_calendar_config(state: State<AppState>) -> calendar::CalConfig {
+    state.cal_config.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn save_calendar_config(app: AppHandle, state: State<AppState>, config: calendar::CalConfig) {
+    calendar::save_config(&state.cal_path, &config);
+    *state.cal_config.lock().unwrap() = config;
+    // pasting/clearing a URL should take effect now, not at the next 10-min tick
+    let app = app.clone();
+    std::thread::spawn(move || refetch_calendar(&app));
+}
+
+#[tauri::command]
+fn load_calendar_events(state: State<AppState>) -> Vec<calendar::CalEvent> {
+    state.cal_events.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn set_calendar_visible(app: AppHandle, visible: bool) {
+    if let Some(w) = app.get_webview_window("calendar") {
+        let _ = if visible { w.show() } else { w.hide() };
+    }
+}
+
+#[tauri::command]
+fn calendar_visible(app: AppHandle) -> bool {
+    app.get_webview_window("calendar")
+        .and_then(|w| w.is_visible().ok())
+        .unwrap_or(false)
+}
+
+/// Fetch the ICS feed once and swap the cache in on success (a fetch/parse error
+/// keeps the last good cache so the ghost never shows a blank calendar offline).
+/// Emits `calendar-status` with a short human message so the settings tab can show
+/// whether the feed actually loaded — silent failure is impossible to debug.
+fn refetch_calendar(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let url = state.cal_config.lock().unwrap().url.clone();
+    if url.trim().is_empty() {
+        *state.cal_events.lock().unwrap() = Vec::new();
+        let _ = app.emit("calendar-updated", ());
+        let _ = app.emit("calendar-status", "no calendar URL set");
+        return;
+    }
+    match calendar::fetch(&url) {
+        Ok(events) => {
+            let msg = format!("✓ loaded {} event(s)", events.len());
+            *state.cal_events.lock().unwrap() = events;
+            let _ = app.emit("calendar-updated", ());
+            let _ = app.emit("calendar-status", msg);
+        }
+        Err(msg) => {
+            let _ = app.emit("calendar-status", format!("✗ {msg}"));
+        }
+    }
+}
+
+/// Background thread: refresh the feed every 10 min. A plain thread (not the tokio
+/// scheduler) — blocking HTTPS has no business on the 10s tick, and one blocking
+/// call isn't worth coloring the rest async. ponytail: fixed 10-min poll.
+fn start_calendar_sync(app: AppHandle) {
+    std::thread::spawn(move || loop {
+        refetch_calendar(&app);
+        std::thread::sleep(Duration::from_secs(600));
     });
 }
 
@@ -242,6 +320,33 @@ fn start_scheduler(app: AppHandle) {
                     serde_json::json!({ "id": r.id, "label": r.label, "poltergeist": r.poltergeist }),
                 );
             }
+
+            // calendar nudges: same `reminder-due` bubble path, deduped via `active`.
+            let cal_due: Vec<(String, String)> = {
+                let state = app.state::<AppState>();
+                let events = state.cal_events.lock().unwrap();
+                let lead = state.cal_config.lock().unwrap().lead_minutes as i64 * 60;
+                let mut active = state.active.lock().unwrap();
+                // drop fired calendar ids whose event has passed (the trailing epoch
+                // in `__cal__<uid>__<start>`); non-calendar ids are left untouched.
+                active.retain(|id| {
+                    id.strip_prefix("__cal__")
+                        .and_then(|s| s.rsplit("__").next())
+                        .and_then(|n| n.parse::<i64>().ok())
+                        .map(|start| start >= now as i64)
+                        .unwrap_or(true)
+                });
+                calendar::due_nudges(&events, now as i64, lead)
+                    .into_iter()
+                    .filter(|(id, _)| active.insert(id.clone()))
+                    .collect()
+            };
+            for (id, label) in cal_due {
+                let _ = app.emit(
+                    "reminder-due",
+                    serde_json::json!({ "id": id, "label": label, "poltergeist": false }),
+                );
+            }
         }
     });
 }
@@ -286,6 +391,8 @@ fn main() {
     // before the setup hook's manage() runs, which raced as "state not managed".
     let path = store::path();
     let reminders = store::load(&path);
+    let cal_path = calendar::config_path(&path);
+    let cal_config = calendar::load_config(&cal_path);
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState {
@@ -293,6 +400,9 @@ fn main() {
             active: Mutex::new(HashSet::new()),
             path,
             hit: Mutex::new(Vec::new()),
+            cal_events: Mutex::new(Vec::new()),
+            cal_config: Mutex::new(cal_config),
+            cal_path,
         })
         .setup(|app| {
             // ghost window/taskbar icon (raw RGBA generated by scripts/make_icon.js)
@@ -326,9 +436,23 @@ fn main() {
                     }
                 });
             }
+            // calendar window: same non-activating + hide-on-close treatment as
+            // the to-do window. Visibility is driven by the settings toggle.
+            if let Some(cal) = app.get_webview_window("calendar") {
+                platform::make_nonactivating(&cal);
+                let _ = cal.set_icon(icon());
+                let c = cal.clone();
+                cal.on_window_event(move |e| {
+                    if let WindowEvent::CloseRequested { api, .. } = e {
+                        api.prevent_close();
+                        let _ = c.hide();
+                    }
+                });
+            }
             // autostart is now driven by the frontend (char window) on load, so the
             // user's toggle persists across restarts. See set_autostart.
             start_scheduler(app.handle().clone());
+            start_calendar_sync(app.handle().clone());
             start_update_check(app.handle().clone());
             #[cfg(target_os = "windows")]
             start_click_through(app.handle().clone());
@@ -346,6 +470,11 @@ fn main() {
             load_todos,
             save_todos,
             set_hit_regions,
+            load_calendar_config,
+            save_calendar_config,
+            load_calendar_events,
+            set_calendar_visible,
+            calendar_visible,
             quit_app
         ])
         .run(tauri::generate_context!())

@@ -1,6 +1,11 @@
 const { invoke } = window.__TAURI__.core;
 const { emit, listen } = window.__TAURI__.event;
 
+// show the build version (read from the app, so it never drifts from the binary)
+window.__TAURI__.app.getVersion().then((v) => {
+  document.getElementById("ver").textContent = "v" + v;
+});
+
 // ghost size: persisted in localStorage, pushed live to the character window
 const CELL_KEY = "charCell";
 const sizeEl = document.getElementById("size");
@@ -238,3 +243,49 @@ listen("todo-visibility", (e) => setTodoVis(!!e.payload));
   reminders = await invoke("load_reminders");
   render();
 })();
+
+// ---- calendar (Google Calendar, read-only ICS feed) ----
+// URL + lead time persist Rust-side (calendar.json) since the feed is fetched
+// with no window open. Saving the config also triggers an immediate re-fetch,
+// so "refresh now" is just a re-save of the current field values.
+const calUrlEl = document.getElementById("calUrl");
+const calLeadEl = document.getElementById("calLead");
+function saveCalConfig() {
+  invoke("save_calendar_config", {
+    config: {
+      url: calUrlEl.value.trim(),
+      lead_minutes: Math.max(0, Math.min(120, Number(calLeadEl.value) || 0)),
+    },
+  });
+}
+invoke("load_calendar_config").then((c) => {
+  calUrlEl.value = c.url || "";
+  calLeadEl.value = c.lead_minutes ?? 5;
+});
+// change = on blur/enter, so we don't refetch on every keystroke of the URL
+calUrlEl.addEventListener("change", saveCalConfig);
+calLeadEl.addEventListener("change", saveCalConfig);
+document.getElementById("calRefresh").addEventListener("click", () => {
+  saveCalConfig(); // persists current fields + kicks a fresh fetch
+  const b = document.getElementById("calRefresh");
+  const t = b.textContent;
+  b.textContent = "↻ refreshing…";
+  setTimeout(() => (b.textContent = t), 1500);
+});
+
+// fetch result from Rust (✓ loaded N events / ✗ reason) — so a bad URL isn't silent
+const calStatusEl = document.getElementById("calStatus");
+listen("calendar-status", (e) => {
+  const msg = String(e.payload || "");
+  calStatusEl.textContent = msg;
+  calStatusEl.classList.toggle("err", msg.startsWith("✗"));
+});
+
+// show/hide the floating calendar window (mirrors the to-do toggle)
+const calVisEl = document.getElementById("calVis");
+calVisEl.addEventListener("change", () =>
+  invoke("set_calendar_visible", { visible: calVisEl.checked }));
+async function syncCalVis() { calVisEl.checked = await invoke("calendar_visible"); }
+syncCalVis();
+listen("calendar-visibility", (e) => (calVisEl.checked = !!e.payload));
+window.__TAURI__.window.getCurrentWindow().onFocusChanged((e) => { if (e.payload) syncCalVis(); });
