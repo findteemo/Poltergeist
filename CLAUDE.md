@@ -40,8 +40,9 @@ No Node build step — the frontend is static files in `src/`.
 - `src-tauri/src/platform/{win,mac}.rs` — non-activating window flags;
   `win.rs` also has `cursor_pos()` (`GetCursorPos` FFI) for the click-through poll.
 - `src/index.html|main.js|style.css` — the ghost overlay. Sprite is built
-  procedurally in `buildSprite(blink, mood)`; moods (`normal|happy|sad|angry`)
-  drive the face. Celebrate/sad/angry logic and the reminder queue live in
+  procedurally in `buildSprite(blink, mood)`; moods
+  (`normal|happy|sad|angry|writing`) drive the face. Celebrate/sad/angry logic,
+  the reminder queue, and the Pomodoro focus timer live in
   `main.js`; `#flames` lights up in poltergeist mode. `reportHit()` tells Rust
   which rects (ghost + visible bubble) stay clickable — see Click-through below.
 - `src/settings.html|settings.js` — tabbed editor (reminder / to-do / settings),
@@ -111,8 +112,13 @@ when the pubkey/endpoint isn't live.
 ## Ghost moods (frontend)
 
 `buildSprite(blink, mood)` swaps the face: `happy` (curved eyes + smile),
-`sad` (frown + tear), `angry` (slanted brows + gritted mouth), `normal`. In
-`main.js`:
+`sad` (frown + tear), `angry` (slanted brows + gritted mouth), `normal`. The
+`writing` mood keeps the normal face; `setMood` adds a `.writing` class to
+`#ghostwrap` (an amber focus glow, CSS) and runs `startPad()` — a second pixel
+sprite (`buildPad`/`renderPad` → `#pad`, same grid-of-cells style as the ghost).
+We see the notebook's **back cover** (binding rings, label, shaded edge); the page
+faces the ghost and stays hidden, and only the pencil top pokes above the edge,
+walking side-to-side (`PAD_HEADS`). In `main.js`:
 - Dismissing a bubble → `celebrate()`: happy face + a translate-only bounce
   (`.char.celebrate`), settles back after ~1.2s. **Translate only** — `scale`/
   `rotate` on the pixel grid expose seams between cells.
@@ -120,6 +126,19 @@ when the pubkey/endpoint isn't live.
   if it elapses unacked → `setMood("sad")`, or `setMood("angry")` + lit `#flames`
   for a **poltergeist** reminder. Cleared on dismiss or when the bubble closes.
 - Blinking is gated on `prefers-reduced-motion`.
+
+## Focus timer (Pomodoro)
+
+Frontend-only (no Rust). The settings **focus** tab has focus/break minute fields
+(persist in localStorage, defaults 25/5) and a Start/Stop button; it emits
+`focus-toggle` and `focus-durations` to the ghost and shows the `focus-status`
+the ghost emits back. The state machine + 1s tick live in `main.js`: loops
+`focus` (mood `writing` → focus notebook, see Ghost moods) → `break` until stopped. The break is a
+countdown bubble pushed into the existing queue under the `BREAK_ID` (`__break__`)
+sentinel — no ack, no sulk (like `__cal__`/`__update__`); its text reticks each
+second and clicking it skips the rest of the break. Reminders are **not**
+suppressed during focus (they show through). A running session is ephemeral —
+not restored after an app restart. `fmt()` (M:SS) has an inline `console.assert`.
 
 ## Auto-launch at login
 

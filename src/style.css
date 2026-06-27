@@ -118,6 +118,33 @@ html, body {
   filter: grayscale(0.45) brightness(0.82) drop-shadow(0 4px 4px rgba(0, 0, 0, 0.55));
 }
 
+/* ---- focus mode: a pixel notebook the ghost writes in ---- */
+/* a sprite grid like the ghost (built in main.js -> buildPad/renderPad), shown in
+   front of the lower body only while "writing". We see the BACK cover — the page
+   faces the ghost and stays hidden; only the pencil top pokes above the binding
+   edge and walks side-to-side. Cells run at 0.8 --cell so it reads as a held pad. */
+#pad {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--cell) * 0.6);
+  transform: translateX(-50%);
+  display: none;
+  grid-template-columns: repeat(10, calc(var(--cell) * 0.8));
+  grid-template-rows: repeat(9, calc(var(--cell) * 0.8));
+  z-index: 1; /* in front of the ghost body (flames sit behind at -1) */
+  filter: drop-shadow(2px 3px 0 rgba(0, 0, 0, 0.5)) drop-shadow(0 0 8px rgba(196, 166, 245, 0.3));
+}
+#ghostwrap.writing #pad { display: grid; }
+#pad .px { pointer-events: none; image-rendering: pixelated; }
+/* a soft focus glow on the ghost itself, so the whole mode reads as "focusing" */
+#ghostwrap.writing #char {
+  animation: bob 3.6s ease-in-out infinite, focusaura 2.6s ease-in-out infinite;
+}
+@keyframes focusaura {
+  0%, 100% { filter: drop-shadow(0 0 6px rgba(227, 178, 60, 0.5)) drop-shadow(0 5px 5px rgba(0, 0, 0, 0.55)); }
+  50%      { filter: drop-shadow(0 0 12px rgba(227, 178, 60, 0.85)) drop-shadow(0 5px 6px rgba(0, 0, 0, 0.55)); }
+}
+
 /* ---- speech bubble: chunky pixel window ---- */
 .bubble {
   max-width: 200px;
@@ -189,4 +216,9 @@ html, body {
   .char.sad { animation: none; } /* keeps its own dimmed filter */
   #flames span { animation: none; }
   .bubble, .bubble.show { transition: none; animation: none; }
+  /* focus mode: hold the glow steady (the pad renders a static frame in JS) */
+  #ghostwrap.writing #char {
+    animation: none;
+    filter: drop-shadow(0 0 8px rgba(227, 178, 60, 0.6)) drop-shadow(0 5px 5px rgba(0, 0, 0, 0.55));
+  }
 }

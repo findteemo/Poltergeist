@@ -213,6 +213,7 @@
     <button class="tabbtn active" data-tab="reminder">reminder</button>
     <button class="tabbtn" data-tab="todo">to-do</button>
     <button class="tabbtn" data-tab="calendar">calendar</button>
+    <button class="tabbtn" data-tab="focus">focus</button>
     <button class="tabbtn" data-tab="settings">settings</button>
   </div>
 
@@ -257,6 +258,23 @@
         <label for="calVis">show calendar window</label>
         <input type="checkbox" id="calVis" />
       </div>
+    </section>
+
+    <!-- FOCUS (Pomodoro timer) -->
+    <section class="tab" id="tab-focus">
+      <div class="sizerow opt">
+        <label for="focusMins">focus</label>
+        <input type="number" id="focusMins" min="1" max="120" step="1" />
+        <span class="mins">min</span>
+      </div>
+      <div class="sizerow opt">
+        <label for="breakMins">break</label>
+        <input type="number" id="breakMins" min="1" max="60" step="1" />
+        <span class="mins">min</span>
+      </div>
+      <button class="add" id="focusToggle">▶ start focus</button>
+      <p class="calstatus" id="focusStatus" role="status" aria-live="polite">idle</p>
+      <p class="calhint">The ghost writes while you focus, then nudges you to break with a countdown. Loops until you stop.</p>
     </section>
 
     <!-- SETTINGS -->

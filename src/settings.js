@@ -33,6 +33,40 @@ cryEl.addEventListener("input", () => {
   emit("cry-mins", m);
 });
 
+// ---- focus timer (Pomodoro) ----
+// Durations persist locally + push live to the ghost; start/stop is a toggle.
+// The ghost runs the clock and emits `focus-status` back for the label.
+const focusMinsEl = document.getElementById("focusMins");
+const breakMinsEl = document.getElementById("breakMins");
+const focusToggleEl = document.getElementById("focusToggle");
+const focusStatusEl = document.getElementById("focusStatus");
+focusMinsEl.value = localStorage.getItem("focusMins") || "25";
+breakMinsEl.value = localStorage.getItem("breakMins") || "5";
+
+function saveFocusDurations() {
+  const f = Math.min(120, Math.max(1, Number(focusMinsEl.value) || 25));
+  const b = Math.min(60, Math.max(1, Number(breakMinsEl.value) || 5));
+  localStorage.setItem("focusMins", f);
+  localStorage.setItem("breakMins", b);
+  emit("focus-durations", { focus: f, break: b });
+}
+focusMinsEl.addEventListener("input", saveFocusDurations);
+breakMinsEl.addEventListener("input", saveFocusDurations);
+
+let focusRunning = false;
+focusToggleEl.addEventListener("click", () => {
+  focusRunning = !focusRunning;
+  if (focusRunning) saveFocusDurations(); // hand the ghost current values on start
+  emit("focus-toggle", focusRunning);
+  focusToggleEl.textContent = focusRunning ? "■ stop focus" : "▶ start focus";
+});
+listen("focus-status", (e) => {
+  focusStatusEl.textContent = String(e.payload);
+  // if the ghost reports idle while we think we're running (e.g. window reloaded
+  // out of sync), correct the button
+  if (e.payload === "idle" && focusRunning) { focusRunning = false; focusToggleEl.textContent = "▶ start focus"; }
+});
+
 // launch-at-login: toggle the HKCU Run key via the backend. Default on.
 const autoEl = document.getElementById("autostart");
 autoEl.checked = localStorage.getItem("autostart") !== "0";

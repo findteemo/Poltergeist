@@ -50,6 +50,8 @@ const COLOR = {
 
 const charEl = document.getElementById("char");
 const flamesEl = document.getElementById("flames");
+const ghostwrapEl = document.getElementById("ghostwrap");
+const padEl = document.getElementById("pad");
 
 // ghost size: cell px set from settings; remembered locally so it survives restart
 const CELL_KEY = "charCell";
@@ -62,7 +64,62 @@ function setMood(m) {
   charEl.classList.toggle("sad", m === "sad");
   charEl.classList.toggle("angry", m === "angry");
   flamesEl.classList.toggle("lit", m === "angry"); // purple flames in poltergeist mode
+  ghostwrapEl.classList.toggle("writing", m === "writing"); // shows the focus notebook
+  if (m === "writing") startPad(); else stopPad();
   render(false);
+}
+
+// ---- focus notebook sprite ----
+// A pixel notebook the ghost writes in (same grid-of-cells style as the ghost).
+// We see the BACK cover — the page faces the ghost and stays hidden; only the
+// pencil top pokes above the spiral binding and walks side to side as it writes.
+const PW = 10, PH = 9;
+const PAD = {
+  c: "#6b4ba0",            // cover
+  s: "#7d5cb0",            // cover shade (depth on the right/bottom)
+  o: "var(--ghost-outline)", // cover edge
+  r: "var(--void)",        // spiral binding ring
+  l: "var(--purple-bright)", // label panel
+  w: "#e3b23c",            // pencil wood
+  m: "#eaa0c2",            // pencil eraser (the bit we see)
+};
+const PAD_HEADS = [3, 4, 5, 6, 7, 7, 6, 5, 4]; // pencil column per frame (side to side)
+function buildPad(f) {
+  const g = Array.from({ length: PH }, () => Array(PW).fill("."));
+  const put = (x, y, c) => { if (x >= 0 && x < PW && y >= 0 && y < PH) g[y][x] = c; };
+  // cover body, rows 3..8 (framed)
+  for (let y = 3; y <= 8; y++)
+    for (let x = 1; x <= 8; x++) g[y][x] = (y === 8 || x === 1 || x === 8) ? "o" : "c";
+  // depth shade along the inner right + above the bottom edge
+  for (let y = 4; y <= 7; y++) g[y][7] = "s";
+  for (let x = 2; x <= 7; x++) g[7][x] = "s";
+  // spiral binding across the top edge
+  for (let x = 1; x <= 8; x++) g[3][x] = x % 2 ? "r" : "o";
+  // label panel
+  for (let x = 3; x <= 6; x++) { g[5][x] = "l"; g[6][x] = "l"; }
+  // pencil top poking above the cover, walking side to side
+  const px = PAD_HEADS[f % PAD_HEADS.length];
+  put(px, 0, "m"); put(px, 1, "w"); put(px, 2, "w");
+  return g;
+}
+function renderPad(f) {
+  const g = buildPad(f);
+  padEl.replaceChildren();
+  for (let y = 0; y < PH; y++)
+    for (let x = 0; x < PW; x++) {
+      const cell = document.createElement("div");
+      cell.className = "px";
+      if (g[y][x] !== ".") cell.style.background = PAD[g[y][x]];
+      padEl.appendChild(cell);
+    }
+}
+let padFrame = 0, padTimer = null;
+function stopPad() { clearInterval(padTimer); padTimer = null; padFrame = 0; }
+function startPad() {
+  stopPad();
+  renderPad(0);
+  if (reduceMotion.matches) return; // static notebook still reads as "writing"
+  padTimer = setInterval(() => { padFrame = (padFrame + 1) % PAD_HEADS.length; renderPad(padFrame); }, 220);
 }
 // quick happy hop on dismiss, then settle back to normal
 function celebrate() {
@@ -70,7 +127,8 @@ function celebrate() {
   charEl.classList.add("celebrate");
   setTimeout(() => {
     charEl.classList.remove("celebrate");
-    if (mood === "happy") setMood("normal");
+    // back to writing if a focus block is still running, else normal
+    if (mood === "happy") setMood(focusPhase === "focus" ? "writing" : "normal");
   }, 1200);
 }
 
@@ -100,7 +158,7 @@ reduceMotion.addEventListener("change", () => { render(false); startBlink(); });
 
 // ---- reminders ----
 const { invoke } = window.__TAURI__.core;
-const { listen } = window.__TAURI__.event;
+const { listen, emit } = window.__TAURI__.event;
 
 listen("char-cell", (e) => { localStorage.setItem(CELL_KEY, e.payload); setCell(e.payload); scheduleReport(); });
 
@@ -166,6 +224,7 @@ const queue = [];
 let currentId = null;
 let moodTimer;
 const UPDATE_ID = "__update__"; // sentinel: this bubble installs an update, not a reminder
+const BREAK_ID = "__break__";   // sentinel: a Pomodoro break countdown (no ack, no sulk)
 
 function showNext() {
   clearTimeout(moodTimer);
@@ -184,7 +243,7 @@ function showNext() {
   chime();
   // ignored too long → ghost gets sad, or angry+flames for poltergeist reminders
   // (update + calendar bubbles don't sulk — they just wait for a click)
-  if (next.id !== UPDATE_ID && !next.id.startsWith("__cal__"))
+  if (next.id !== UPDATE_ID && next.id !== BREAK_ID && !next.id.startsWith("__cal__"))
     moodTimer = setTimeout(() => setMood(next.poltergeist ? "angry" : "sad"), cryMs);
 }
 
@@ -212,6 +271,12 @@ bubble.addEventListener("click", async () => {
     showNext();
     return;
   }
+  // break bubble: click skips the rest of the break, straight back to focus.
+  if (currentId === BREAK_ID) {
+    showNext();   // drop the break bubble
+    enterFocus(); // next focus block (the 1s tick keeps running)
+    return;
+  }
   await invoke("ack_reminder", { id: currentId });
   celebrate();
   showNext();
@@ -226,4 +291,72 @@ listen("update-available", (e) => {
 charEl.addEventListener("contextmenu", (e) => {
   e.preventDefault();
   invoke("open_settings");
+});
+
+// ---- focus timer (Pomodoro) ----
+// Loops focus → break until stopped. Focus = the writing animation; break = a
+// live countdown bubble (reuses the queue via the BREAK_ID sentinel). The ghost
+// owns the running timer; settings just toggles it and shows `focus-status`.
+// A running session is ephemeral — not restored after an app restart (YAGNI).
+const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+console.assert(fmt(0) === "0:00" && fmt(65) === "1:05" && fmt(605) === "10:05", "fmt broken");
+
+let focusMins = Number(localStorage.getItem("focusMins")) || 25;
+let breakMins = Number(localStorage.getItem("breakMins")) || 5;
+let focusPhase = "idle"; // "idle" | "focus" | "break"
+let focusLeft = 0;       // seconds left in the current phase
+let focusTimer = null;   // 1s tick
+
+function emitFocusStatus() {
+  emit("focus-status", focusPhase === "focus" ? `focusing · ${fmt(focusLeft)}`
+    : focusPhase === "break" ? `break · ${fmt(focusLeft)}` : "idle");
+}
+
+function enterFocus() {
+  focusPhase = "focus";
+  focusLeft = focusMins * 60;
+  setMood("writing"); // shows the focus notebook (the .writing class + startPad)
+  emitFocusStatus();
+}
+function enterBreak() {
+  focusPhase = "break";
+  focusLeft = breakMins * 60;
+  setMood("happy"); // drops the .writing class → notepad hides
+  queue.push({ id: BREAK_ID, label: `🌙 break · ${fmt(focusLeft)}` });
+  if (!currentId) showNext();
+  emitFocusStatus();
+}
+function dropBreakBubble() {
+  if (currentId === BREAK_ID) showNext();
+  else { const i = queue.findIndex((q) => q.id === BREAK_ID); if (i >= 0) queue.splice(i, 1); }
+}
+
+function tickFocus() {
+  focusLeft--;
+  if (focusPhase === "break" && currentId === BREAK_ID)
+    bubbleText.textContent = `🌙 break · ${fmt(Math.max(0, focusLeft))}`;
+  emitFocusStatus();
+  if (focusLeft <= 0) {
+    if (focusPhase === "focus") enterBreak();
+    else { dropBreakBubble(); enterFocus(); }
+  }
+}
+
+function startFocus() {
+  clearInterval(focusTimer);
+  enterFocus();
+  focusTimer = setInterval(tickFocus, 1000);
+}
+function stopFocus() {
+  clearInterval(focusTimer); focusTimer = null;
+  dropBreakBubble();
+  focusPhase = "idle"; focusLeft = 0;
+  if (mood === "writing" || mood === "happy") setMood("normal");
+  emitFocusStatus();
+}
+
+listen("focus-toggle", (e) => (e.payload ? startFocus() : stopFocus()));
+listen("focus-durations", (e) => {
+  focusMins = Math.max(1, Number(e.payload.focus) || focusMins);
+  breakMins = Math.max(1, Number(e.payload.break) || breakMins);
 });

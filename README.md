@@ -52,6 +52,9 @@ reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v Poltergeist /
   poltergeist flag. Right-click the ghost to open settings.
 - **Floating to-do list** — a tiny optional window of tasks; click one to finish
   it. Edit tasks from the settings *to-do* tab; toggle the window on or off.
+- **Focus timer (Pomodoro)** — a *focus* tab with adjustable focus/break lengths:
+  the ghost writes in a little notebook while you focus, then nudges you to take a
+  break with a live countdown, looping focus → break until you stop.
 - **Gentle chime** on each nudge (toggleable), and an adjustable ghost size.
 - **Auto-launch at login** (Windows) — toggleable in settings, survives restarts.
 - Reminders and to-dos persist to JSON files in your OS config dir; windows
