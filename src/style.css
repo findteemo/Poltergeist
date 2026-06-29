@@ -229,6 +229,8 @@ html, body {
   text-transform: uppercase;
   color: var(--purple);
 }
+#bubble .agentlogo { width: 16px; height: 16px; vertical-align: -3px; margin-right: 4px; image-rendering: auto; }
+#bubble .agentlogo[hidden] { display: none; }
 
 @keyframes flicker {
   0%, 100% { box-shadow: 4px 4px 0 0 var(--purple-deep), 0 0 14px rgb(var(--purple-rgb) / 0.35); }

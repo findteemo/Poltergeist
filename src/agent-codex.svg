@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none">
+  <!-- OpenAI/Codex hexagon mark: regular hexagon (pointy-top) -->
+  <polygon points="10,2.5 16.5,6.25 16.5,13.75 10,17.5 3.5,13.75 3.5,6.25"
+           stroke="#c4a6f5" stroke-width="2" stroke-linejoin="round"/>
+</svg>

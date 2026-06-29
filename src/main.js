@@ -308,6 +308,9 @@ function chime() {
 const bubble = document.getElementById("bubble");
 const bubbleText = bubble.querySelector(".text");
 const bubbleHint = bubble.querySelector(".hint");
+const bubbleLogo = bubble.querySelector(".agentlogo");
+const AGENT_LOGO = { claude: "agent-claude.svg", codex: "agent-codex.svg" };
+console.assert(AGENT_LOGO.claude && AGENT_LOGO.codex, "agent logos mapped");
 // the hint reflects what clicking actually does — not always "dismiss"
 const hintFor = (id) =>
   id === UPDATE_ID ? "click to update" :
@@ -337,13 +340,23 @@ function showNext() {
   currentId = next.id;
   bubbleText.textContent = next.label;
   bubbleHint.textContent = hintFor(next.id);
+  if (next.agent && AGENT_LOGO[next.agent]) {
+    bubbleLogo.src = AGENT_LOGO[next.agent];
+    bubbleLogo.hidden = false;
+  } else {
+    bubbleLogo.hidden = true;
+  }
   bubble.classList.add("show");
   scheduleReport(); // bubble now interactive — include it
   chime();
   // ignored too long → ghost gets sad, or angry+flames for poltergeist reminders
-  // (update + calendar bubbles don't sulk — they just wait for a click)
-  if (next.id !== UPDATE_ID && next.id !== BREAK_ID && !next.id.startsWith("__cal__"))
+  // (update + calendar + agent bubbles don't sulk — they just react on show)
+  if (next.id.startsWith("__agent__")) {
+    if (next.kind === "needs-action") setMood("angry"); // lights #flames (see setMood)
+    else celebrate(); // finished → happy bounce
+  } else if (next.id !== UPDATE_ID && next.id !== BREAK_ID && !next.id.startsWith("__cal__")) {
     moodTimer = setTimeout(() => setMood(next.poltergeist ? "angry" : "sad"), cryMs);
+  }
 }
 
 listen("reminder-due", (e) => {
@@ -367,6 +380,12 @@ bubble.addEventListener("click", async () => {
   }
   // calendar nudges have no backing reminder — just dismiss (no ack_reminder).
   if (currentId.startsWith("__cal__")) {
+    celebrate();
+    showNext();
+    return;
+  }
+  // agent pings have no backing reminder — just dismiss (no ack_reminder).
+  if (currentId.startsWith("__agent__")) {
     celebrate();
     showNext();
     return;
