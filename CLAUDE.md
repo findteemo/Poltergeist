@@ -55,6 +55,11 @@ No Node build step — the frontend is static files in `src/`.
   ghost): a month grid (dots on days with events, click a day to filter) over an
   agenda list (next 7 days by default). Read-only; events come from
   `load_calendar_events`, refreshed on the `calendar-updated` event.
+- `src/tokens.css` — the shared spectral palette (`--void`/`--purple`/`--ghost`/
+  `--muted`/`--danger`…), single source of truth `<link>`ed by all four windows.
+  Edit colors here, not per-window. `main.js` also reads the ghost/eye/blush/tear
+  vars at runtime for sprite cells, so they must stay on `:root` here. Only
+  `--cell` (the overlay's pixel unit) stays window-local in `style.css`.
 - `src/winpos.js` — remembers each window's on-screen position across launches
   (localStorage keyed by window label). Loaded by all three windows.
 - `src-tauri/scripts/make_icon.js` — generates `icons/icon.ico` (exe/shortcut
@@ -111,9 +116,13 @@ when the pubkey/endpoint isn't live.
 
 ## Ghost moods (frontend)
 
-`buildSprite(blink, mood)` swaps the face: `happy` (curved eyes + smile),
-`sad` (frown + tear), `angry` (slanted brows + gritted mouth), `normal`. The
-`writing` mood keeps the normal face; `setMood` adds a `.writing` class to
+`buildSprite(blink, mood, gaze)` swaps the face: `happy` (curved eyes + smile),
+`sad` (frown + tear), `angry` (slanted brows + gritted mouth), `normal`, plus the
+personality faces `curious` (open eyes + tiny smile), `yawn`, `surprised`, and
+`sleeping` (closed lids). **Keep the resting `normal`/`happy`/`sad`/`angry` faces
+in sync with `scripts/make_icon.js`** — it has its own `buildSprite` copy and the
+icon renders `normal`; the new moods are runtime-only so the icon is unaffected.
+The `writing` mood keeps the normal face; `setMood` adds a `.writing` class to
 `#ghostwrap` (an amber focus glow, CSS) and runs `startPad()` — a second pixel
 sprite (`buildPad`/`renderPad` → `#pad`, same grid-of-cells style as the ghost).
 We see the notebook's **back cover** (binding rings, label, shaded edge); the page
@@ -126,6 +135,24 @@ walking side-to-side (`PAD_HEADS`). In `main.js`:
   if it elapses unacked → `setMood("sad")`, or `setMood("angry")` + lit `#flames`
   for a **poltergeist** reminder. Cleared on dismiss or when the bubble closes.
 - Blinking is gated on `prefers-reduced-motion`.
+
+**Personality (idle behaviors).** Three transient faces (`yawn`/`surprised`/
+`scrunch`) live *outside* the `mood` machine in a `transient` var so they never
+clobber a sulk / focus / bubble — `render()` prefers `transient`, then the hover
+`curious` peek, then `mood`. `flash(expr, ms, then)` shows one briefly (and is a no-op under
+reduced-motion, still running `then`).
+- **Glance:** hovering the idle ghost → `curious` + eyes track the cursor's side
+  via `gaze` (-1/0/1, set on `mousemove`, fed to `buildSprite`).
+- **Doze:** a reset `setTimeout` (`scheduleDoze`, `IDLE_MS` = 3 min; **not** a
+  poll) fires when `idle()` (normal, no bubble, focus idle, not hovered) → `yawn`
+  then `setMood("sleeping")` (dimmed `.char.sleeping` + the `#zzz` layer). Every
+  return to `normal` re-arms it; any other mood cancels it.
+- **Wake:** hover / a `reminder-due` / mousedown calls `wake()` → back to
+  `normal` + a `surprised` startle. **Drag:** mousedown flashes a `scrunch` (>.<)
+  briefly (settles on its own, so a missed mouseup during the OS drag can't leave
+  it stuck mid-squeeze).
+- Reduced-motion: no yawn/startle/zzz-drift; doze still lands on a static dimmed
+  sleeping face with a static `z z z`.
 
 ## Focus timer (Pomodoro)
 
