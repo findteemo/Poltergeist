@@ -2,6 +2,7 @@
 
 mod agents;
 mod calendar;
+mod hooks;
 mod platform;
 mod reminders;
 mod store;
