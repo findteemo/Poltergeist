@@ -31,6 +31,7 @@ pub fn merge_claude(json: &str, exe: &str) -> String {
         .unwrap()
         .entry("hooks")
         .or_insert_with(|| serde_json::json!({}));
+    if !hooks.is_object() { *hooks = serde_json::json!({}); }
     for (event, tail) in [("Stop", "--agent claude --event finished"),
                           ("Notification", "--agent claude --event needs-action")] {
         let cmd = claude_cmd(exe, tail);
@@ -60,8 +61,10 @@ pub fn remove_claude(json: &str) -> String {
     if let Some(hooks) = root.get_mut("hooks").and_then(|h| h.as_object_mut()) {
         for event in ["Stop", "Notification"] {
             if let Some(arr) = hooks.get_mut(event).and_then(|a| a.as_array_mut()) {
-                arr.retain(|g| !g.to_string().contains("notify")
-                    || !(g.to_string().contains("--agent claude")));
+                arr.retain(|g| {
+                    let s = g.to_string();
+                    !(s.contains(CLAUDE_FINISHED) || s.contains(CLAUDE_NEEDS))
+                });
             }
         }
     }
@@ -191,5 +194,39 @@ mod tests {
         assert!(merge_codex(foreign, "p.exe").is_err());
         // but removing a foreign notify is a no-op (only removes ours)
         assert_eq!(remove_codex(foreign).trim(), foreign.trim());
+    }
+
+    // Fix 3: remove_claude must not touch a co-located user hook
+    #[test]
+    fn remove_claude_preserves_user_hook() {
+        let start = r#"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"echo hi"}]}]}}"#;
+        let merged = merge_claude(start, "p.exe");
+        assert!(has_claude(&merged), "our hook was added");
+        assert!(merged.contains("echo hi"), "user hook present before remove");
+        let removed = remove_claude(&merged);
+        assert!(!has_claude(&removed), "our hook was removed");
+        assert!(removed.contains("echo hi"), "user hook survives remove_claude");
+    }
+
+    // Fix 4a: merge_codex idempotent — exactly one notify key after two merges
+    #[test]
+    fn merge_codex_idempotent_single_notify() {
+        let start = "model = \"o3\"\n";
+        let once = merge_codex(start, "p.exe").unwrap();
+        let twice = merge_codex(&once, "p.exe").unwrap();
+        assert_eq!(twice.matches("notify =").count(), 1,
+                   "exactly one notify key after two merges; got:\n{twice}");
+    }
+
+    // Fix 4b: merge_claude must not panic when "hooks" exists but isn't an object
+    #[test]
+    fn merge_claude_handles_non_object_hooks() {
+        let null_hooks = r#"{"hooks": null}"#;
+        let out = merge_claude(null_hooks, "p.exe");
+        assert!(has_claude(&out), "hooks:null handled — our entries present");
+
+        let arr_hooks = r#"{"hooks": []}"#;
+        let out = merge_claude(arr_hooks, "p.exe");
+        assert!(has_claude(&out), "hooks:[] handled — our entries present");
     }
 }
