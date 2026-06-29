@@ -352,6 +352,33 @@ fn start_scheduler(app: AppHandle) {
     });
 }
 
+/// 2s tick: drain the agent inbox and emit a `reminder-due` per note. Snappier
+/// than the 10s scheduler so "finished" pings feel immediate. Notes fire once
+/// (drain deletes them), so unlike reminders they need no `active` dedupe.
+fn start_inbox_watch(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let mut tick = tokio::time::interval(Duration::from_secs(2));
+        loop {
+            tick.tick().await;
+            let dir = {
+                let path = app.state::<AppState>().path.clone();
+                agents::inbox_dir(path.parent().unwrap_or(&path))
+            };
+            for note in agents::drain_inbox(&dir) {
+                let (id, label) = agents::bubble(&note);
+                let _ = app.emit(
+                    "reminder-due",
+                    serde_json::json!({
+                        "id": id, "label": label,
+                        "agent": note.agent, "kind": note.event,
+                        "poltergeist": false
+                    }),
+                );
+            }
+        }
+    });
+}
+
 /// Launch at login via the HKCU Run key. Native reg.exe, no extra crate.
 /// Idempotent — rewrites the same value each launch. Points at whatever exe is
 /// running (dev build or installed). Remove with:
@@ -483,6 +510,7 @@ fn main() {
             // autostart is now driven by the frontend (char window) on load, so the
             // user's toggle persists across restarts. See set_autostart.
             start_scheduler(app.handle().clone());
+            start_inbox_watch(app.handle().clone());
             start_calendar_sync(app.handle().clone());
             start_update_check(app.handle().clone());
             #[cfg(target_os = "windows")]
