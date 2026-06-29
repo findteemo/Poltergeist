@@ -75,12 +75,27 @@ autoEl.addEventListener("change", () => {
   invoke("set_autostart", { enabled: autoEl.checked });
 });
 
-// tabs: plain show/hide, no router
-document.querySelectorAll(".tabbtn").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".tabbtn").forEach((b) => b.classList.toggle("active", b === btn));
-    document.querySelectorAll(".tab").forEach((t) =>
-      t.classList.toggle("active", t.id === "tab-" + btn.dataset.tab));
+// tabs: plain show/hide, no router. Keep aria-selected in sync for SRs.
+const tabBtns = [...document.querySelectorAll(".tabbtn")];
+function selectTab(btn) {
+  tabBtns.forEach((b) => {
+    const on = b === btn;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  document.querySelectorAll(".tab").forEach((t) =>
+    t.classList.toggle("active", t.id === "tab-" + btn.dataset.tab));
+}
+tabBtns.forEach((btn) => {
+  btn.addEventListener("click", () => selectTab(btn));
+  // ←/→ move between tabs (WAI-ARIA tablist pattern)
+  btn.addEventListener("keydown", (e) => {
+    const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const next = tabBtns[(tabBtns.indexOf(btn) + step + tabBtns.length) % tabBtns.length];
+    selectTab(next);
+    next.focus();
   });
 });
 
@@ -136,8 +151,20 @@ function rowHtml(r, i) {
   return row;
 }
 
+// teaching empty-state note (lowercase ghost voice; sub points at the next action)
+function emptyNote(main, sub) {
+  const d = document.createElement("div");
+  d.className = "empty";
+  d.innerHTML = sub ? `${main}<span class="sub">${sub}</span>` : main;
+  return d;
+}
+
 function render() {
   listEl.replaceChildren();
+  if (!reminders.length) {
+    listEl.appendChild(emptyNote("no nudges yet", "summon one below ✦"));
+    return;
+  }
   reminders.forEach((r, i) => listEl.appendChild(rowHtml(r, i)));
 }
 
@@ -225,6 +252,10 @@ listen("todos-changed", (e) => {
 });
 function renderTodos() {
   todoListEl.replaceChildren();
+  if (!todos.length) {
+    todoListEl.appendChild(emptyNote("nothing to do yet", "add a task below ✦"));
+    return;
+  }
   todos.forEach((t, i) => {
     const row = document.createElement("div");
     row.className = "row";
@@ -323,3 +354,34 @@ async function syncCalVis() { calVisEl.checked = await invoke("calendar_visible"
 syncCalVis();
 listen("calendar-visibility", (e) => (calVisEl.checked = !!e.payload));
 window.__TAURI__.window.getCurrentWindow().onFocusChanged((e) => { if (e.payload) syncCalVis(); });
+
+// ---- agents (Claude Code / Codex notifications) ----
+const agentStatus = document.getElementById("agentStatus");
+const agentBtns = [...document.querySelectorAll(".agentbtn")];
+
+async function refreshAgentState() {
+  const [claude, codex] = await invoke("agent_hook_state");
+  const state = { claude, codex };
+  for (const btn of agentBtns) {
+    const on = state[btn.dataset.agent];
+    btn.textContent = on ? "uninstall hooks" : "install hooks";
+    btn.classList.toggle("on", on);
+  }
+}
+refreshAgentState();
+
+for (const btn of agentBtns) {
+  btn.addEventListener("click", async () => {
+    const agent = btn.dataset.agent;
+    const installed = btn.classList.contains("on");
+    try {
+      await invoke(installed ? "uninstall_agent_hook" : "install_agent_hook", { agent });
+      agentStatus.textContent = installed
+        ? `${agent} hooks removed`
+        : `${agent} hooks installed — relaunch ${agent}`;
+    } catch (e) {
+      agentStatus.textContent = `✗ ${e}`;
+    }
+    refreshAgentState();
+  });
+}

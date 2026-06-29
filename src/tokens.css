@@ -1,0 +1,31 @@
+/* Shared spectral palette — the one source of truth for all four windows
+   (character overlay, settings, to-do, calendar). Each window <link>s this
+   before its own styles, so a palette change is a one-file edit and the
+   windows can't drift apart. main.js also reads the ghost/eye/blush/tear/void
+   vars at runtime for the sprite cells, so they must live on :root here. */
+:root {
+  --void: #0e0a14;
+  --panel: #1b1230;
+  --row: #221636;
+  --row-hover: #241640;
+  --purple: #9d7bd8;
+  --purple-bright: #c4a6f5;
+  --purple-deep: #3d2459;
+  /* rgb triplets of the two purples + the focus amber, for glow/shadow alphas
+     via rgb(var(--x) / A) — keeps spectral glows from drifting off-palette */
+  --purple-rgb: 157 123 216;
+  --purple-bright-rgb: 196 166 245;
+  --amber-rgb: 227 178 60;
+  --ghost: #ece4fa;
+  --ghost-shade: #c9b8ec;
+  --ghost-outline: #2a1b3d;
+  --eye: #19102b;
+  --blush: #c4a6f5;
+  --tear: #8fc7f5;
+  --text: #ddd0f5;
+  /* lifted from #8d79b3 → clears WCAG AA (4.5:1) on --row, not just --void */
+  --muted: #9a86bd;
+  --danger: #c77;
+  --danger-bright: #e89;
+  --mono: "Cascadia Code", "Consolas", "SF Mono", "Menlo", monospace;
+}

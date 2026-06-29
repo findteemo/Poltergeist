@@ -52,11 +52,18 @@ function renderGrid() {
   }
   for (let day = 1; day <= daysInMonth; day++) {
     const d = new Date(view.getFullYear(), view.getMonth(), day);
-    const cell = document.createElement("div");
+    const cell = document.createElement("button");
     cell.className = "cell";
+    cell.type = "button";
+    const picked = selected && sameDay(d, selected);
+    cell.setAttribute("aria-pressed", picked ? "true" : "false");
+    cell.setAttribute(
+      "aria-label",
+      `${MONTHS[view.getMonth()]} ${day}${has.has(dayKey(d)) ? ", has events" : ""}`
+    );
     if (has.has(dayKey(d))) cell.classList.add("has");
     if (sameDay(d, today)) cell.classList.add("today");
-    if (selected && sameDay(d, selected)) cell.classList.add("sel");
+    if (picked) cell.classList.add("sel");
     cell.textContent = day;
     cell.addEventListener("click", () => {
       // click the selected day again to clear back to the 7-day view
@@ -83,7 +90,9 @@ function renderAgenda() {
   if (!shown.length) {
     const empty = document.createElement("div");
     empty.className = "empty";
-    empty.textContent = "nothing here ✦";
+    empty.innerHTML = selected
+      ? "nothing on this day ✦"
+      : 'all quiet ✦<span class="sub">next 7 days are clear</span>';
     listEl.appendChild(empty);
     return;
   }
@@ -101,7 +110,7 @@ function renderAgenda() {
     }
     const item = document.createElement("div");
     item.className = "item";
-    item.innerHTML = `<span class="time"></span> `;
+    item.innerHTML = `<span class="time"></span>`; // no trailing space: clean flex children
     item.querySelector(".time").textContent = fmtTime(e);
     item.appendChild(document.createTextNode(e.title || "(busy)"));
     listEl.appendChild(item);

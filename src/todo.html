@@ -4,18 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Poltergeist · to-do</title>
+  <link rel="stylesheet" href="tokens.css" />
   <style>
-    :root {
-      --void: #0e0a14;
-      --panel: #1b1230;
-      --row: #221636;
-      --purple: #9d7bd8;
-      --purple-bright: #c4a6f5;
-      --purple-deep: #3d2459;
-      --text: #ddd0f5;
-      --muted: #8d79b3;
-      --mono: "Cascadia Code", "Consolas", "SF Mono", "Menlo", monospace;
-    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; background: transparent; overflow: hidden; font-family: var(--mono); }
     .panel {
@@ -24,24 +14,25 @@
       flex-direction: column;
       background: var(--void);
       border: 3px solid var(--purple);
-      box-shadow: 4px 4px 0 0 var(--purple-deep), 0 0 14px rgba(157,123,216,0.35);
+      box-shadow: 4px 4px 0 0 var(--purple-deep), 0 0 14px rgb(var(--purple-rgb) / 0.35);
       color: var(--text);
       padding: 10px;
       background-image:
-        radial-gradient(120% 80% at 0% 0%, rgba(157,123,216,0.10), transparent 55%),
-        radial-gradient(120% 80% at 100% 100%, rgba(196,166,245,0.08), transparent 55%);
+        radial-gradient(120% 80% at 0% 0%, rgb(var(--purple-rgb) / 0.10), transparent 55%),
+        radial-gradient(120% 80% at 100% 100%, rgb(var(--purple-bright-rgb) / 0.08), transparent 55%);
     }
     .bar { display: flex; align-items: center; justify-content: space-between; cursor: grab; margin-bottom: 8px; }
     .bar:active { cursor: grabbing; }
     .title {
-      font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
-      color: var(--purple-bright); text-shadow: 0 0 10px rgba(157,123,216,0.5);
+      font-size: 16px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase;
+      color: var(--purple-bright);
+      text-shadow: 2px 2px 0 var(--purple-deep), 0 0 12px rgb(var(--purple-rgb) / 0.5);
     }
     #close {
       border: 2px solid var(--purple-deep); background: var(--void); color: var(--purple);
       cursor: pointer; font-size: 12px; line-height: 1; padding: 2px 5px; font-family: var(--mono);
     }
-    #close:hover { border-color: #c77; color: #e89; }
+    #close:hover { border-color: var(--danger); color: var(--danger-bright); }
     #close:focus-visible { outline: 2px solid var(--purple-bright); outline-offset: 2px; }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -51,28 +42,35 @@
     #list::-webkit-scrollbar-track { background: var(--void); }
     #list::-webkit-scrollbar-thumb { background: var(--purple-deep); border: 2px solid var(--void); }
     #list::-webkit-scrollbar-thumb:hover { background: var(--purple); }
+    /* ledger lines — one list language shared with the settings reminder rows.
+       real <button> so a task can be finished by keyboard, not just a click */
     .item {
-      background: var(--row); border: 2px solid var(--purple-deep);
-      padding: 8px 9px; margin-bottom: 8px; font-size: 12px; cursor: pointer;
-      box-shadow: 3px 3px 0 0 rgba(0,0,0,0.35); word-break: break-word;
+      display: block; width: 100%; text-align: left;
+      font-family: var(--mono); font-size: 12px; color: var(--text);
+      background: transparent; border: none;
+      border-bottom: 1px solid rgb(var(--purple-rgb) / 0.16);
+      padding: 9px 6px; cursor: pointer; word-break: break-word;
+      transition: background 0.12s ease, color 0.12s ease;
     }
-    .item:hover { border-color: var(--purple); color: var(--purple-bright); }
-    .item:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 0 rgba(0,0,0,0.35); }
+    .item:last-child { border-bottom: none; }
+    .item:hover, .item:focus-visible { background: rgb(var(--purple-rgb) / 0.06); color: var(--purple-bright); }
+    .item:focus-visible { outline: 2px solid var(--purple-bright); outline-offset: -2px; }
     .item::before { content: "☐ "; color: var(--muted); }
-    .item:hover::before { content: "☑ "; color: var(--purple); }
-    .empty { color: var(--muted); font-size: 11px; text-align: center; margin-top: 24px; letter-spacing: 1px; }
+    .item:hover::before, .item:focus-visible::before { content: "☑ "; color: var(--purple); }
+    .empty { color: var(--muted); font-size: 12px; text-align: center; margin-top: 24px; letter-spacing: 1px; line-height: 1.5; }
+    .empty .sub { display: block; margin-top: 7px; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.85; }
     .hint { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: 1px; text-align: center; margin-top: 6px; }
   </style>
 </head>
 <body>
-  <div class="panel">
+  <main class="panel">
     <div class="bar">
-      <span class="title">✦ to-do</span>
+      <h1 class="title">✦ to-do</h1>
       <button id="close" title="hide" aria-label="Hide to-do list">✕</button>
     </div>
     <div id="list"></div>
     <div class="hint">click a task to finish it</div>
-  </div>
+  </main>
   <script src="winpos.js"></script>
   <script src="todo.js"></script>
 </body>

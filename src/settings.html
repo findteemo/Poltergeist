@@ -4,135 +4,140 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Poltergeist</title>
+  <link rel="stylesheet" href="tokens.css" />
   <style>
-    :root {
-      --void: #0e0a14;
-      --panel: #1b1230;
-      --row: #221636;
-      --purple: #9d7bd8;
-      --purple-bright: #c4a6f5;
-      --purple-deep: #3d2459;
-      --text: #ddd0f5;
-      --muted: #8d79b3;
-      --mono: "Cascadia Code", "Consolas", "SF Mono", "Menlo", monospace;
-    }
+    /* ── grimoire: the ghost's little book. Palette is the shared spectral set
+       (tokens.css); the look is carried by an ornamented "page", ledger-style
+       entries, dotted section rules, and a soft lowercase voice. ── */
+    :root { --sp1: 4px; --sp2: 8px; --sp3: 12px; --sp4: 16px; --sp5: 24px; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html { height: 100%; }
     body {
       font-family: var(--mono);
       background: var(--void);
       color: var(--text);
-      padding: 18px 16px;
-      /* fill the window and lay out as a column so the list takes the slack */
+      padding: var(--sp4) var(--sp4) var(--sp3);
       height: 100%;
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      /* faint spectral glow in the corners */
+      /* faint spectral candlelight pooling in opposite corners */
       background-image:
-        radial-gradient(120% 80% at 0% 0%, rgba(157,123,216,0.10), transparent 55%),
-        radial-gradient(120% 80% at 100% 100%, rgba(196,166,245,0.08), transparent 55%);
+        radial-gradient(120% 80% at 0% 0%, rgb(var(--purple-rgb) / 0.12), transparent 55%),
+        radial-gradient(120% 80% at 100% 100%, rgb(var(--purple-bright-rgb) / 0.09), transparent 55%);
     }
-    /* tabs fill the slack between the tabbar and the actions; only lists scroll */
-    .tabs { flex: 1; min-height: 0; display: flex; }
-    .tab { display: none; flex: 1; min-height: 0; flex-direction: column; width: 100%; }
-    .tab.active { display: flex; }
-    .scroll {
-      flex: 1;
-      min-height: 0;
-      overflow-y: auto;
-      overflow-x: hidden; /* rows shrink to fit; no sideways scroll */
-      margin-right: -6px; /* let the scrollbar sit in the body padding */
-      padding-right: 6px;
-    }
-    /* spectral scrollbar (WebView2 is Chromium) */
-    .scroll::-webkit-scrollbar { width: 10px; }
-    .scroll::-webkit-scrollbar-track { background: var(--void); }
-    .scroll::-webkit-scrollbar-thumb {
-      background: var(--purple-deep);
-      border: 2px solid var(--void); /* inset so the thumb reads as a chunky pixel block */
-    }
-    .scroll::-webkit-scrollbar-thumb:hover { background: var(--purple); }
-    /* tab bar */
-    .tabbar { display: flex; gap: 6px; margin-bottom: 12px; }
-    .tabbtn {
-      flex: 1; border: 2px solid var(--purple-deep); background: var(--void);
-      color: var(--muted); border-radius: 0; padding: 6px 4px; cursor: pointer;
-      font-family: var(--mono); font-size: 10px; letter-spacing: 1px;
-      text-transform: uppercase;
-    }
-    .tabbtn.active { color: var(--purple-bright); border-color: var(--purple); background: var(--row); }
-    /* poltergeist (flame) per-row toggle */
-    .pg {
-      border: 2px solid var(--purple-deep); background: var(--void);
-      border-radius: 0; cursor: pointer; font-size: 12px; line-height: 1; padding: 3px;
-      filter: grayscale(1) opacity(0.45); /* off = dim */
-    }
-    .pg.on { filter: none; border-color: var(--purple); box-shadow: 0 0 8px rgba(196,166,245,0.6); }
-    /* cry-timer + show-list rows reuse the size-row look */
-    .opt input[type=number] {
-      width: 54px; border: 2px solid var(--purple-deep); border-radius: 0;
-      padding: 3px 4px; font-family: var(--mono); font-size: 11px;
-      color: var(--text); background: var(--void);
-    }
-    .opt input[type=number]:focus { outline: none; border-color: var(--purple); }
-    /* calendar tab: stacked label + full-width URL field, and a hint */
-    .calfield {
-      display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px;
-      font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted);
-    }
-    .calfield input {
-      border: 2px solid var(--purple-deep); border-radius: 0; padding: 6px 7px;
-      font-family: var(--mono); font-size: 11px; color: var(--text); background: var(--void);
-      text-transform: none; letter-spacing: 0;
-    }
-    .calfield input:focus { outline: none; border-color: var(--purple); }
-    .calhint {
-      font-size: 9px; color: var(--muted); letter-spacing: 0.3px; line-height: 1.5;
-      margin: 6px 0 0; text-transform: none;
-    }
-    .calstatus { font-size: 10px; letter-spacing: 0.3px; margin: 8px 0 0; min-height: 13px; color: var(--purple-bright); }
-    .calstatus.err { color: #e89; }
-    /* frameless window: header doubles as the drag handle (no OS title bar) */
-    .titlebar { display: flex; align-items: flex-start; justify-content: space-between; cursor: grab; }
+
+    /* ── header / book plate ── */
+    .titlebar { display: flex; align-items: flex-start; justify-content: space-between; cursor: grab; margin-bottom: var(--sp3); }
     .titlebar:active { cursor: grabbing; }
     h1 {
-      font-size: 15px; font-weight: 700; letter-spacing: 2px;
+      font-size: 26px; font-weight: 700; letter-spacing: 4px; line-height: 1;
       text-transform: uppercase; color: var(--purple-bright);
-      text-shadow: 0 0 10px rgba(157,123,216,0.5);
+      /* chunky pixel drop-shadow (matches the box-shadow language) + spectral glow */
+      text-shadow: 3px 3px 0 var(--purple-deep), 0 0 16px rgb(var(--purple-rgb) / 0.55);
+      animation: titleglow 4.5s ease-in-out infinite;
     }
+    @keyframes titleglow {
+      0%, 100% { text-shadow: 3px 3px 0 var(--purple-deep), 0 0 12px rgb(var(--purple-rgb) / 0.42); }
+      50%      { text-shadow: 3px 3px 0 var(--purple-deep), 0 0 22px rgb(var(--purple-bright-rgb) / 0.78); }
+    }
+    p.sub { font-size: 10px; color: var(--muted); margin-top: 7px; letter-spacing: 1px; }
     #close {
       border: 2px solid var(--purple-deep); background: var(--void); color: var(--purple);
       border-radius: 0; cursor: pointer; font-size: 13px; line-height: 1; padding: 3px 6px;
       font-family: var(--mono);
     }
-    #close:hover { border-color: #c77; color: #e89; }
-    p.sub {
-      font-size: 10px; color: var(--muted); margin: 5px 0 16px;
-      letter-spacing: 0.5px;
+    #close:hover { border-color: var(--danger); color: var(--danger-bright); }
+
+    /* ── ledger tabs ── */
+    .tabbar { display: flex; gap: var(--sp1); }
+    .tabbtn {
+      flex: 1; border: 2px solid var(--purple-deep); border-bottom: none;
+      border-top: 3px solid transparent; /* room for the active indicator bar */
+      background: var(--void); color: var(--muted); border-radius: 0;
+      padding: 8px 4px; cursor: pointer; font-family: var(--mono);
+      font-size: 11px; font-weight: 400; letter-spacing: 0.5px; text-transform: lowercase;
+      transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
     }
+    .tabbtn:hover { color: var(--purple-bright); background: var(--row); }
+    /* committed active state: full weight jump, a bright indicator bar on top, lit edge */
+    .tabbtn.active {
+      color: var(--purple-bright); font-weight: 700;
+      border-color: var(--purple); border-top-color: var(--purple-bright);
+      background: var(--panel);
+      box-shadow: 0 -4px 14px rgb(var(--purple-rgb) / 0.35);
+    }
+
+    /* ── the page: a framed, candle-lit leaf with corner stars ── */
+    .tabs {
+      flex: 1; min-height: 0; display: flex; position: relative;
+      border: 2px solid var(--purple); background: var(--panel);
+      background-image: radial-gradient(150% 100% at 50% 0%, rgb(var(--purple-rgb) / 0.07), transparent 60%);
+      box-shadow: inset 0 0 0 1px rgb(var(--purple-rgb) / 0.08), inset 3px 3px 14px rgba(0,0,0,0.4);
+      padding: var(--sp4);
+    }
+    .tabs::before, .tabs::after { content: "✦"; position: absolute; color: var(--purple); opacity: 0.55; font-size: 9px; }
+    .tabs::before { top: 5px; left: 7px; }
+    .tabs::after  { bottom: 5px; right: 7px; }
+    .tab { display: none; flex: 1; min-height: 0; flex-direction: column; width: 100%; }
+    .tab.active { display: flex; animation: leafin 0.22s cubic-bezier(0.16, 1, 0.3, 1); }
+    @keyframes leafin { from { opacity: 0; } to { opacity: 1; } }
+
+    /* ── section header: word between dotted rules ── */
+    .grim {
+      display: flex; align-items: center; gap: var(--sp3);
+      margin-bottom: var(--sp4); color: var(--purple-bright);
+      font-size: 14px; font-weight: 700; letter-spacing: 2px; text-transform: lowercase;
+      text-shadow: 0 0 10px rgb(var(--purple-rgb) / 0.4);
+    }
+    /* asymmetric rules give the heading a clear left anchor instead of floating centered */
+    .grim::before { content: ""; width: 14px; flex: none; border-top: 3px solid var(--purple); }
+    .grim::after { content: ""; flex: 1; border-top: 2px dotted var(--purple-deep); }
+
+    /* ── scrolling leaf body ── */
+    .scroll {
+      flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+      margin-right: calc(var(--sp3) * -1); padding-right: var(--sp2);
+    }
+    .scroll::-webkit-scrollbar { width: 10px; }
+    .scroll::-webkit-scrollbar-track { background: transparent; }
+    .scroll::-webkit-scrollbar-thumb {
+      background: var(--purple-deep);
+      border: 2px solid var(--panel); /* inset so the thumb reads as a chunky pixel block on the page */
+    }
+    .scroll::-webkit-scrollbar-thumb:hover { background: var(--purple); }
+
+    /* empty-state note for the reminder / to-do lists — teaches the next action
+       in the ghost's lowercase voice instead of leaving the page blank */
+    .empty {
+      color: var(--muted); font-size: 11px; text-align: center;
+      letter-spacing: 0.5px; line-height: 1.7; padding: 30px 14px;
+    }
+    .empty .sub { display: block; margin-top: 7px; color: var(--purple); font-size: 10px; letter-spacing: 1px; }
+
+    /* ── entries: ledger lines, not boxed cards ── */
     .row {
       display: grid;
       /* minmax(0,1fr) lets the label shrink so the flame/delete never clip */
       grid-template-columns: 24px minmax(0, 1fr) auto auto 24px;
-      gap: 9px;
-      align-items: center;
-      background: var(--row);
-      border: 2px solid var(--purple-deep);
-      border-radius: 0;
-      padding: 9px;
-      margin-bottom: 9px;
-      box-shadow: 3px 3px 0 0 rgba(0,0,0,0.35);
+      gap: var(--sp2); align-items: center;
+      background: transparent; border: none;
+      border-bottom: 1px solid rgb(var(--purple-rgb) / 0.16);
+      border-radius: 0; padding: var(--sp2) var(--sp1); margin: 0;
+      transition: background 0.12s ease;
     }
+    .row:hover { background: rgb(var(--purple-rgb) / 0.06); }
+    .row:last-child { border-bottom: none; }
     .row input[type=text] {
-      border: none; border-bottom: 1px solid rgba(157,123,216,0.22); /* reads as an editable field, not loose text */
+      border: none; border-bottom: 1px solid rgb(var(--purple-rgb) / 0.28); /* reads as an editable field, not loose text */
       background: transparent; font-family: var(--mono);
       font-size: 12px; color: var(--text); padding-bottom: 2px;
       min-width: 0; /* allow the label cell to shrink instead of forcing overflow */
     }
+    .row input[type=text]::placeholder { color: var(--muted); }
+    .row input[type=text]:focus { border-bottom-color: var(--purple); }
     /* number + unit travel together as one control */
     .row > span { display: inline-flex; align-items: center; gap: 6px; }
-    .row input[type=text]::placeholder { color: var(--muted); }
     .row input[type=number] {
       width: 48px; border: 2px solid var(--purple-deep); border-radius: 0;
       padding: 3px 4px; font-family: var(--mono); font-size: 11px;
@@ -142,7 +147,7 @@
       border: 2px solid var(--purple-deep); border-radius: 0;
       padding: 3px 2px; font-family: var(--mono); font-size: 10px;
       color: var(--text); background: var(--void); color-scheme: dark;
-      text-transform: uppercase; letter-spacing: 1px; cursor: pointer;
+      letter-spacing: 0.5px; cursor: pointer;
     }
     .row input[type=datetime-local] {
       border: 2px solid var(--purple-deep); border-radius: 0;
@@ -150,51 +155,101 @@
       color: var(--text); background: var(--void); color-scheme: dark;
     }
     .row input:focus { outline: none; border-color: var(--purple); }
-    /* tinted checkbox */
     .row input[type=checkbox] { accent-color: var(--purple); width: 15px; height: 15px; }
+
+    /* poltergeist (flame) per-row toggle */
+    .pg {
+      border: 2px solid var(--purple-deep); background: var(--void);
+      border-radius: 0; cursor: pointer; font-size: 12px; line-height: 1; padding: 3px;
+      filter: grayscale(1) opacity(0.45); /* off = dim */
+    }
+    .pg.on { filter: none; border-color: var(--purple); box-shadow: 0 0 8px rgb(var(--purple-bright-rgb) / 0.6); }
     .del {
       border: 2px solid var(--purple-deep); background: var(--void); color: var(--purple);
       border-radius: 0; cursor: pointer; font-size: 12px; line-height: 1; padding: 3px;
       font-family: var(--mono);
     }
-    .del:hover { border-color: #c77; color: #e89; }
-    .mins { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
-    .actions { display: flex; gap: 9px; margin-top: 14px; align-items: center; }
-    button.primary, button.add, button.quit {
-      border: 2px solid var(--purple); border-radius: 0; padding: 8px 12px;
-      font-family: var(--mono); font-size: 12px; cursor: pointer;
-      letter-spacing: 1px; text-transform: uppercase;
-      box-shadow: 3px 3px 0 0 var(--purple-deep);
-      transition: transform 0.06s ease, box-shadow 0.06s ease;
-    }
-    button:active { transform: translate(3px, 3px); box-shadow: 0 0 0 0 var(--purple-deep); }
-    /* visible keyboard focus — text inputs already show focus via border-color */
-    button:focus-visible, .tabbtn:focus-visible, .pg:focus-visible, .del:focus-visible {
-      outline: 2px solid var(--purple-bright); outline-offset: 2px;
-    }
-    button.add { background: var(--panel); color: var(--purple-bright); margin-bottom: 2px; width: 100%; }
-    button.primary { background: var(--purple); color: var(--void); flex: 1; font-weight: 700; }
-    button.quit { background: var(--panel); color: var(--muted); border-color: var(--purple-deep); box-shadow: 3px 3px 0 0 #000; }
-    .saved { font-size: 10px; color: var(--purple-bright); letter-spacing: 1px; text-transform: uppercase; }
+    .del:hover { border-color: var(--danger); color: var(--danger-bright); }
+    .mins { font-size: 9px; color: var(--muted); letter-spacing: 0.5px; }
+
+    /* ── plain option rows (size / chime / cry / focus / calendar fields) ── */
     .sizerow {
-      display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
-      font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted);
+      display: flex; align-items: center; gap: 10px; margin-bottom: var(--sp4);
+      font-size: 11px; letter-spacing: 0.5px; color: var(--muted);
     }
     .sizerow input[type=range] { flex: 1; accent-color: var(--purple); }
     .sizerow input[type=checkbox] {
       margin-left: auto; accent-color: var(--purple); width: 15px; height: 15px; cursor: pointer;
     }
+    .opt input[type=number] {
+      width: 54px; border: 2px solid var(--purple-deep); border-radius: 0;
+      padding: 3px 4px; font-family: var(--mono); font-size: 11px;
+      color: var(--text); background: var(--void);
+    }
+    .opt input[type=number]:focus { outline: none; border-color: var(--purple); }
     /* a settled option row — divider + room set it apart from the list actions */
     .optrow {
       display: flex; align-items: center; gap: 10px;
-      margin-top: 18px; padding-top: 16px;
-      border-top: 2px solid var(--purple-deep);
-      font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted);
+      margin-top: var(--sp4); padding-top: var(--sp4);
+      border-top: 2px dotted var(--purple-deep);
+      font-size: 11px; letter-spacing: 0.5px; color: var(--muted);
     }
     .optrow label { cursor: pointer; }
     .optrow input[type=checkbox] {
       margin-left: auto; accent-color: var(--purple); width: 15px; height: 15px; cursor: pointer;
     }
+
+    /* ── calendar tab fields ── */
+    .calfield {
+      display: flex; flex-direction: column; gap: 6px; margin-bottom: var(--sp4);
+      font-size: 11px; letter-spacing: 0.5px; color: var(--muted);
+    }
+    .calfield input {
+      border: 2px solid var(--purple-deep); border-radius: 0; padding: 6px 7px;
+      font-family: var(--mono); font-size: 11px; color: var(--text); background: var(--void);
+      letter-spacing: 0;
+    }
+    .calfield input::placeholder { color: var(--muted); } /* pinned to AA-clearing token, not the translucent default */
+    .calfield input:focus { outline: none; border-color: var(--purple); }
+    .calhint {
+      font-size: 9px; color: var(--muted); letter-spacing: 0.3px; line-height: 1.55; margin-top: 6px;
+    }
+    .calstatus { font-size: 10px; letter-spacing: 0.3px; margin-top: 8px; min-height: 13px; color: var(--purple-bright); }
+    .calstatus.err { color: var(--danger-bright); }
+
+    /* ── add / save / quit ── */
+    .actions { display: flex; gap: var(--sp3); margin-top: var(--sp4); align-items: center; position: relative; }
+    .actions::before {
+      content: "✦"; position: absolute; top: calc(var(--sp2) * -1.1); left: 50%;
+      transform: translateX(-50%); color: var(--purple-deep); font-size: 10px;
+    }
+    button.primary, button.add, button.quit {
+      border: 2px solid var(--purple); border-radius: 0; padding: 8px 12px;
+      font-family: var(--mono); font-size: 12px; cursor: pointer;
+      letter-spacing: 0.5px; text-transform: lowercase;
+      box-shadow: 3px 3px 0 0 var(--purple-deep);
+      transition: transform 0.06s ease, box-shadow 0.06s ease;
+    }
+    button:active { transform: translate(3px, 3px); box-shadow: 0 0 0 0 var(--purple-deep); }
+    button.add { background: var(--row); color: var(--purple-bright); margin-bottom: var(--sp1); width: 100%; }
+    button.add:hover { background: var(--row-hover); }
+    /* the loudest control on the page: brighter fill, heavier weight, a bigger lift */
+    button.primary {
+      background: var(--purple-bright); color: var(--void); flex: 1;
+      font-weight: 700; font-size: 13px; letter-spacing: 1px; padding: 9px 12px;
+      border-color: var(--purple-bright);
+      box-shadow: 4px 4px 0 0 var(--purple-deep), 0 0 16px rgb(var(--purple-bright-rgb) / 0.4);
+    }
+    button.primary:hover { background: var(--ghost); }
+    button.quit { background: var(--panel); color: var(--muted); border-color: var(--purple-deep); box-shadow: 3px 3px 0 0 #000; }
+    .saved { font-size: 10px; color: var(--purple-bright); letter-spacing: 0.5px; }
+    button.add span, button.primary span { opacity: 0.85; }
+
+    /* visible keyboard focus — text inputs already show focus via border-color */
+    button:focus-visible, .tabbtn:focus-visible, .pg:focus-visible, .del:focus-visible, #close:focus-visible {
+      outline: 2px solid var(--purple-bright); outline-offset: 2px;
+    }
+
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation: none !important; transition: none !important; }
     }
@@ -204,36 +259,39 @@
   <div class="titlebar" data-tauri-drag-region>
     <div data-tauri-drag-region>
       <h1 data-tauri-drag-region>✦ Poltergeist ✦</h1>
-      <p class="sub" data-tauri-drag-region>gentle nudges from your little ghost · <span id="ver"></span></p>
+      <p class="sub" data-tauri-drag-region>the ghost's little book of nudges · <span id="ver"></span></p>
     </div>
     <button id="close" title="close" aria-label="Close settings">✕</button>
   </div>
 
-  <div class="tabbar">
-    <button class="tabbtn active" data-tab="reminder">reminder</button>
-    <button class="tabbtn" data-tab="todo">to-do</button>
-    <button class="tabbtn" data-tab="calendar">calendar</button>
-    <button class="tabbtn" data-tab="focus">focus</button>
-    <button class="tabbtn" data-tab="settings">settings</button>
+  <div class="tabbar" role="tablist" aria-label="Settings sections">
+    <button class="tabbtn active" data-tab="reminder" role="tab" id="tabbtn-reminder" aria-controls="tab-reminder" aria-selected="true">reminder</button>
+    <button class="tabbtn" data-tab="todo" role="tab" id="tabbtn-todo" aria-controls="tab-todo" aria-selected="false">to-do</button>
+    <button class="tabbtn" data-tab="calendar" role="tab" id="tabbtn-calendar" aria-controls="tab-calendar" aria-selected="false">calendar</button>
+    <button class="tabbtn" data-tab="focus" role="tab" id="tabbtn-focus" aria-controls="tab-focus" aria-selected="false">focus</button>
+    <button class="tabbtn" data-tab="agents" role="tab" id="tabbtn-agents" aria-controls="tab-agents" aria-selected="false">agents</button>
+    <button class="tabbtn" data-tab="settings" role="tab" id="tabbtn-settings" aria-controls="tab-settings" aria-selected="false">settings</button>
   </div>
 
   <div class="tabs">
     <!-- REMINDER (default) -->
-    <section class="tab active" id="tab-reminder">
+    <section class="tab active" id="tab-reminder" role="tabpanel" aria-labelledby="tabbtn-reminder">
+      <h2 class="grim">reminders</h2>
       <div class="sizerow opt">
         <label for="cry">cry after</label>
         <input type="number" id="cry" min="1" max="10" step="1" />
         <span class="mins">min ignored</span>
       </div>
       <div id="list" class="scroll"></div>
-      <button class="add" id="add">+ summon reminder</button>
-      <button class="add" id="addSched">+ schedule for a time</button>
+      <button class="add" id="add"><span aria-hidden="true">✎</span> summon reminder</button>
+      <button class="add" id="addSched"><span aria-hidden="true">✦</span> schedule for a time</button>
     </section>
 
     <!-- TO-DO -->
-    <section class="tab" id="tab-todo">
+    <section class="tab" id="tab-todo" role="tabpanel" aria-labelledby="tabbtn-todo">
+      <h2 class="grim">to-dos</h2>
       <div id="todolist" class="scroll"></div>
-      <button class="add" id="addTodo">+ add task</button>
+      <button class="add" id="addTodo"><span aria-hidden="true">✎</span> add task</button>
       <div class="optrow">
         <label for="todoVis">show list window</label>
         <input type="checkbox" id="todoVis" />
@@ -241,7 +299,8 @@
     </section>
 
     <!-- CALENDAR (Google Calendar, read-only ICS feed) -->
-    <section class="tab" id="tab-calendar">
+    <section class="tab" id="tab-calendar" role="tabpanel" aria-labelledby="tabbtn-calendar">
+      <h2 class="grim">calendar</h2>
       <label class="calfield">
         <span>google calendar ICS url</span>
         <input type="url" id="calUrl" placeholder="https://calendar.google.com/calendar/ical/.../basic.ics" aria-label="Google Calendar secret ICS URL" />
@@ -261,7 +320,8 @@
     </section>
 
     <!-- FOCUS (Pomodoro timer) -->
-    <section class="tab" id="tab-focus">
+    <section class="tab" id="tab-focus" role="tabpanel" aria-labelledby="tabbtn-focus">
+      <h2 class="grim">focus</h2>
       <div class="sizerow opt">
         <label for="focusMins">focus</label>
         <input type="number" id="focusMins" min="1" max="120" step="1" />
@@ -277,8 +337,24 @@
       <p class="calhint">The ghost writes while you focus, then nudges you to break with a countdown. Loops until you stop.</p>
     </section>
 
+    <!-- AGENTS (Claude Code / Codex notifications) -->
+    <section class="tab" id="tab-agents" role="tabpanel" aria-labelledby="tabbtn-agents">
+      <h2 class="grim">agents</h2>
+      <div class="optrow">
+        <span>Claude Code</span>
+        <button class="add agentbtn" id="claudeHook" data-agent="claude">install hooks</button>
+      </div>
+      <div class="optrow">
+        <span>Codex</span>
+        <button class="add agentbtn" id="codexHook" data-agent="codex">install hooks</button>
+      </div>
+      <p class="calstatus" id="agentStatus" role="status" aria-live="polite"></p>
+      <p class="calhint">The ghost nudges you when an agent finishes a turn or needs your input. Installing edits that agent's own config (~/.claude/settings.json, ~/.codex/config.toml). Quit &amp; relaunch the agent after installing.</p>
+    </section>
+
     <!-- SETTINGS -->
-    <section class="tab" id="tab-settings">
+    <section class="tab" id="tab-settings" role="tabpanel" aria-labelledby="tabbtn-settings">
+      <h2 class="grim">settings</h2>
       <div class="sizerow">
         <label for="size">ghost size</label>
         <input type="range" id="size" min="5" max="14" step="1" />
@@ -295,7 +371,7 @@
   </div>
 
   <div class="actions">
-    <button class="primary" id="save">save</button>
+    <button class="primary" id="save"><span aria-hidden="true">❖</span> save</button>
     <button class="quit" id="quit">quit</button>
     <span class="saved" id="saved" role="status" aria-live="polite"></span>
   </div>

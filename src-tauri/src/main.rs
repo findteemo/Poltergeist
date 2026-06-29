@@ -1,6 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod agents;
 mod calendar;
+mod hooks;
 mod platform;
 mod reminders;
 mod store;
@@ -71,6 +73,30 @@ fn ack_reminder(state: State<AppState>, id: String) {
 #[tauri::command]
 fn quit_app(app: AppHandle) {
     app.exit(0);
+}
+
+/// (claude_installed, codex_installed) — for the settings Agents tab.
+#[tauri::command]
+fn agent_hook_state() -> (bool, bool) {
+    (hooks::claude_state(), hooks::codex_state())
+}
+
+#[tauri::command]
+fn install_agent_hook(agent: String) -> Result<(), String> {
+    match agent.as_str() {
+        "claude" => hooks::install_claude(),
+        "codex" => hooks::install_codex(),
+        _ => Err(format!("unknown agent {agent}")),
+    }
+}
+
+#[tauri::command]
+fn uninstall_agent_hook(agent: String) -> Result<(), String> {
+    match agent.as_str() {
+        "claude" => hooks::uninstall_claude(),
+        "codex" => hooks::uninstall_codex(),
+        _ => Err(format!("unknown agent {agent}")),
+    }
 }
 
 /// The frontend reports which rects (ghost + visible bubble) should stay
@@ -351,6 +377,33 @@ fn start_scheduler(app: AppHandle) {
     });
 }
 
+/// 2s tick: drain the agent inbox and emit a `reminder-due` per note. Snappier
+/// than the 10s scheduler so "finished" pings feel immediate. Notes fire once
+/// (drain deletes them), so unlike reminders they need no `active` dedupe.
+fn start_inbox_watch(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let mut tick = tokio::time::interval(Duration::from_secs(2));
+        loop {
+            tick.tick().await;
+            let dir = {
+                let path = app.state::<AppState>().path.clone();
+                agents::inbox_dir(path.parent().unwrap_or(&path))
+            };
+            for note in agents::drain_inbox(&dir) {
+                let (id, label) = agents::bubble(&note);
+                let _ = app.emit(
+                    "reminder-due",
+                    serde_json::json!({
+                        "id": id, "label": label,
+                        "agent": note.agent, "kind": note.event,
+                        "poltergeist": false
+                    }),
+                );
+            }
+        }
+    });
+}
+
 /// Launch at login via the HKCU Run key. Native reg.exe, no extra crate.
 /// Idempotent — rewrites the same value each launch. Points at whatever exe is
 /// running (dev build or installed). Remove with:
@@ -377,6 +430,36 @@ fn register_autostart() {
 }
 
 fn main() {
+    // Agent-notify subcommand: an external hook runs `poltergeist notify …` which
+    // just drops a note file in the inbox and exits — never spins up a window.
+    // Intercepted here, before any Tauri/WebView init.
+    let args: Vec<String> = std::env::args().collect();
+    if args.get(1).map(String::as_str) == Some("notify") {
+        let config = store::path();
+        let dir = agents::inbox_dir(config.parent().unwrap_or(&config));
+        let flag = |name: &str| {
+            args.iter().position(|a| a == name).and_then(|i| args.get(i + 1)).cloned()
+        };
+        if args.iter().any(|a| a == "--from-codex") {
+            // Codex passes the notification as a single JSON arg with a `type` field.
+            // ponytail: defensive map — only an explicit approval/input type is
+            // "needs-action"; everything else (incl. turn-complete) is "finished".
+            let event = args.last()
+                .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok())
+                .and_then(|v| v.get("type").and_then(|t| t.as_str()).map(String::from))
+                .map(|t| if t.contains("approval") || t.contains("input") || t.contains("permission") {
+                    "needs-action"
+                } else {
+                    "finished"
+                })
+                .unwrap_or("finished");
+            agents::write_note(&dir, "codex", event);
+        } else if let (Some(agent), Some(event)) = (flag("--agent"), flag("--event")) {
+            agents::write_note(&dir, &agent, &event);
+        }
+        std::process::exit(0);
+    }
+
     // ponytail: trim WebView2's RAM — cap renderer processes and drop the GPU
     // process. Cuts the process count/footprint; raise the limit if the UI lags.
     #[cfg(windows)]
@@ -452,6 +535,7 @@ fn main() {
             // autostart is now driven by the frontend (char window) on load, so the
             // user's toggle persists across restarts. See set_autostart.
             start_scheduler(app.handle().clone());
+            start_inbox_watch(app.handle().clone());
             start_calendar_sync(app.handle().clone());
             start_update_check(app.handle().clone());
             #[cfg(target_os = "windows")]
@@ -475,7 +559,10 @@ fn main() {
             load_calendar_events,
             set_calendar_visible,
             calendar_visible,
-            quit_app
+            quit_app,
+            agent_hook_state,
+            install_agent_hook,
+            uninstall_agent_hook
         ])
         .run(tauri::generate_context!())
         .expect("error while running Poltergeist");

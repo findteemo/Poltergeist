@@ -5,8 +5,8 @@ desktop and gently nudges you to drink water, fix your posture, and stretch —
 **without ever stealing focus** from what you're doing. He celebrates when you
 tick a task off, sulks when you ignore him, and — for reminders you mark
 **poltergeist** — turns angry with purple flames until you listen. Comes with a
-matching floating to-do list. Cozy spectral theme: black + purple, monospace
-type, chunky pixel borders.
+matching floating to-do list and a read-only Google Calendar view. Cozy spectral
+theme: black + purple, monospace type, chunky pixel borders.
 
 Built with **Tauri 2** (Rust + the OS webview), so it stays light on RAM.
 
@@ -52,13 +52,22 @@ reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v Poltergeist /
   poltergeist flag. Right-click the ghost to open settings.
 - **Floating to-do list** — a tiny optional window of tasks; click one to finish
   it. Edit tasks from the settings *to-do* tab; toggle the window on or off.
+- **Google Calendar** — paste your calendar's read-only *secret address in iCal
+  format* into the settings *calendar* tab and upcoming events surface as the same
+  gentle nudges, with an adjustable lead time. An optional floating calendar window
+  shows a month grid (dots on days with events) over an agenda list. **Read-only,
+  no OAuth** — it only reads the ICS feed and never writes anything back.
 - **Focus timer (Pomodoro)** — a *focus* tab with adjustable focus/break lengths:
   the ghost writes in a little notebook while you focus, then nudges you to take a
   break with a live countdown, looping focus → break until you stop.
+- **Agent notifications** — the ghost nudges you when Claude Code or Codex finishes
+  a turn (happy bounce) or needs your input (angry + purple flames). Set up in one
+  click from the settings *agents* tab — it wires the hooks into each agent's own
+  config automatically. Relaunch the agent once after installing.
 - **Gentle chime** on each nudge (toggleable), and an adjustable ghost size.
 - **Auto-launch at login** (Windows) — toggleable in settings, survives restarts.
-- Reminders and to-dos persist to JSON files in your OS config dir; windows
-  remember their positions.
+- Reminders, to-dos, and your calendar settings persist to JSON files in your OS
+  config dir; windows remember their positions.
 - **Accessibility** — keyboard-focusable controls and `prefers-reduced-motion`
   support (no blink/animation when reduced motion is on).
 
@@ -67,7 +76,8 @@ reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v Poltergeist /
 Data lives in the OS config dir (kept under `cozy-reminder` for backwards
 compatibility with earlier versions):
 
-- Windows: `%APPDATA%\cozy-reminder\` (`reminders.json`, `todos.json`)
+- Windows: `%APPDATA%\cozy-reminder\` (`reminders.json`, `todos.json`,
+  `calendar.json`, `inbox/` for transient agent notes)
 - macOS: `~/Library/Application Support/cozy-reminder/`
 
 Delete `reminders.json` to reset reminders to defaults. A corrupt, missing, or

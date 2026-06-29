@@ -16,17 +16,22 @@ function save() {
 
 function render() {
   listEl.replaceChildren();
+  const hintEl = document.querySelector(".hint");
   if (!todos.length) {
     const empty = document.createElement("div");
     empty.className = "empty";
-    empty.textContent = "all clear ✦";
+    empty.innerHTML = 'all clear ✦<span class="sub">add tasks in settings</span>';
     listEl.appendChild(empty);
+    hintEl.style.display = "none"; // nothing to click — drop the "click to finish" hint
     return;
   }
+  hintEl.style.display = "";
   todos.forEach((t, i) => {
-    const item = document.createElement("div");
+    const item = document.createElement("button");
     item.className = "item";
+    item.type = "button";
     item.textContent = t.text || "(empty task)";
+    item.setAttribute("aria-label", `Finish task: ${t.text || "(empty task)"}`);
     item.addEventListener("click", () => {
       todos.splice(i, 1);
       save();

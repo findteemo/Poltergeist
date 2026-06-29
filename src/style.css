@@ -1,19 +1,7 @@
+/* palette lives in tokens.css (shared across all windows); only the overlay's
+   own pixel-grid unit is window-specific. */
 :root {
   --cell: 9px;
-  --void: #0e0a14;
-  --panel: #1b1230;
-  --purple: #9d7bd8;
-  --purple-bright: #c4a6f5;
-  --purple-deep: #3d2459;
-  --ghost: #ece4fa;
-  --ghost-shade: #c9b8ec;
-  --ghost-outline: #2a1b3d;
-  --eye: #19102b;
-  --blush: #c4a6f5;
-  --tear: #8fc7f5;
-  --text: #ddd0f5;
-  --muted: #8d79b3;
-  --mono: "Cascadia Code", "Consolas", "SF Mono", "Menlo", monospace;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -60,7 +48,7 @@ html, body {
   height: calc(var(--cell) * 3);
   background: linear-gradient(to top, var(--purple-deep) 0%, var(--purple) 45%, var(--purple-bright) 100%);
   border-radius: 45% 45% 18% 18% / 65% 65% 35% 35%;
-  filter: drop-shadow(0 0 6px rgba(196, 166, 245, 0.8));
+  filter: drop-shadow(0 0 6px rgb(var(--purple-bright-rgb) / 0.8));
   animation: flameflicker 0.5s ease-in-out infinite;
 }
 #flames span:nth-child(2) { height: calc(var(--cell) * 4); animation-delay: 0.12s; }
@@ -75,7 +63,7 @@ html, body {
 /* angry: drop the bob for a tight shake + a hot purple glow */
 .char.angry {
   animation: angryshake 0.16s steps(2) infinite;
-  filter: drop-shadow(0 0 9px rgba(196, 166, 245, 0.95)) drop-shadow(0 0 16px rgba(157, 123, 216, 0.75));
+  filter: drop-shadow(0 0 9px rgb(var(--purple-bright-rgb) / 0.95)) drop-shadow(0 0 16px rgb(var(--purple-rgb) / 0.75));
 }
 @keyframes angryshake {
   0% { transform: translate(-1px, 0); }
@@ -97,8 +85,8 @@ html, body {
   50% { transform: translateY(-5px); }
 }
 @keyframes aura {
-  0%, 100% { filter: drop-shadow(0 0 5px rgba(157, 123, 216, 0.45)) drop-shadow(0 5px 5px rgba(0, 0, 0, 0.55)); }
-  50% { filter: drop-shadow(0 0 11px rgba(196, 166, 245, 0.85)) drop-shadow(0 5px 6px rgba(0, 0, 0, 0.55)); }
+  0%, 100% { filter: drop-shadow(0 0 5px rgb(var(--purple-rgb) / 0.45)) drop-shadow(0 5px 5px rgba(0, 0, 0, 0.55)); }
+  50% { filter: drop-shadow(0 0 11px rgb(var(--purple-bright-rgb) / 0.85)) drop-shadow(0 5px 6px rgba(0, 0, 0, 0.55)); }
 }
 
 /* celebrate: a happy hop on dismiss (overrides bob+aura while it runs) */
@@ -118,6 +106,44 @@ html, body {
   filter: grayscale(0.45) brightness(0.82) drop-shadow(0 4px 4px rgba(0, 0, 0, 0.55));
 }
 
+/* sleeping: dropped the aura, dimmed, a slow deep "breathing" bob */
+.char.sleeping {
+  animation: bob 6.5s ease-in-out infinite;
+  filter: brightness(0.78) drop-shadow(0 0 5px rgb(var(--purple-rgb) / 0.4)) drop-shadow(0 4px 4px rgba(0, 0, 0, 0.55));
+}
+
+/* ---- sleep "z z z": a rising, staggered trail above the dozing ghost ---- */
+#zzz {
+  position: absolute;
+  top: calc(var(--cell) * -0.4);
+  right: calc(var(--cell) * -0.6);
+  display: none;
+  width: calc(var(--cell) * 3);
+  height: calc(var(--cell) * 2.5);
+  pointer-events: none;
+}
+#ghostwrap.sleeping #zzz { display: block; }
+#zzz span {
+  position: absolute;
+  bottom: 0;
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--purple-bright);
+  text-shadow: 0 0 6px rgb(var(--purple-bright-rgb) / 0.55);
+  opacity: 0;
+  /* ease-out-quint: drifts up fast then eases as it fades */
+  animation: zfloat 3.3s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+#zzz span:nth-child(1) { left: 0;  font-size: 9px;  animation-delay: 0s; }
+#zzz span:nth-child(2) { left: 7px; font-size: 12px; animation-delay: 1.1s; }
+#zzz span:nth-child(3) { left: 15px; font-size: 15px; animation-delay: 2.2s; }
+@keyframes zfloat {
+  0%   { opacity: 0; transform: translate(0, 4px) scale(0.6); }
+  18%  { opacity: 0.95; }
+  70%  { opacity: 0.85; }
+  100% { opacity: 0; transform: translate(9px, -18px) scale(1.1); }
+}
+
 /* ---- focus mode: a pixel notebook the ghost writes in ---- */
 /* a sprite grid like the ghost (built in main.js -> buildPad/renderPad), shown in
    front of the lower body only while "writing". We see the BACK cover — the page
@@ -132,7 +158,7 @@ html, body {
   grid-template-columns: repeat(10, calc(var(--cell) * 0.8));
   grid-template-rows: repeat(9, calc(var(--cell) * 0.8));
   z-index: 1; /* in front of the ghost body (flames sit behind at -1) */
-  filter: drop-shadow(2px 3px 0 rgba(0, 0, 0, 0.5)) drop-shadow(0 0 8px rgba(196, 166, 245, 0.3));
+  filter: drop-shadow(2px 3px 0 rgba(0, 0, 0, 0.5)) drop-shadow(0 0 8px rgb(var(--purple-bright-rgb) / 0.3));
 }
 #ghostwrap.writing #pad { display: grid; }
 #pad .px { pointer-events: none; image-rendering: pixelated; }
@@ -141,8 +167,8 @@ html, body {
   animation: bob 3.6s ease-in-out infinite, focusaura 2.6s ease-in-out infinite;
 }
 @keyframes focusaura {
-  0%, 100% { filter: drop-shadow(0 0 6px rgba(227, 178, 60, 0.5)) drop-shadow(0 5px 5px rgba(0, 0, 0, 0.55)); }
-  50%      { filter: drop-shadow(0 0 12px rgba(227, 178, 60, 0.85)) drop-shadow(0 5px 6px rgba(0, 0, 0, 0.55)); }
+  0%, 100% { filter: drop-shadow(0 0 6px rgb(var(--amber-rgb) / 0.5)) drop-shadow(0 5px 5px rgba(0, 0, 0, 0.55)); }
+  50%      { filter: drop-shadow(0 0 12px rgb(var(--amber-rgb) / 0.85)) drop-shadow(0 5px 6px rgba(0, 0, 0, 0.55)); }
 }
 
 /* ---- speech bubble: chunky pixel window ---- */
@@ -156,10 +182,12 @@ html, body {
   font-size: 12px;
   line-height: 1.4;
   text-align: center;
-  box-shadow: 4px 4px 0 0 var(--purple-deep), 0 0 14px rgba(157, 123, 216, 0.35);
+  text-wrap: balance; /* even line lengths on multi-line reminder labels */
+  box-shadow: 4px 4px 0 0 var(--purple-deep), 0 0 14px rgb(var(--purple-rgb) / 0.35);
   opacity: 0;
   transform: translateY(6px);
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  /* ease-out-expo: the bubble decelerates as it arrives (entrance, not symmetric) */
+  transition: opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1), transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.15s ease;
   pointer-events: none;
   position: relative;
   image-rendering: pixelated;
@@ -190,7 +218,9 @@ html, body {
   cursor: pointer;
   animation: flicker 3s ease-in-out infinite;
 }
-.bubble:hover { background: #241640; }
+/* the bubble is the click target — make hover legible (border lifts; flicker owns
+   the shadow while shown, so hover can't use it) */
+.bubble:hover { background: var(--row-hover); border-color: var(--purple-bright); }
 .bubble .hint {
   display: block;
   margin-top: 4px;
@@ -199,10 +229,12 @@ html, body {
   text-transform: uppercase;
   color: var(--purple);
 }
+#bubble .agentlogo { width: 16px; height: 16px; vertical-align: -3px; margin-right: 4px; image-rendering: auto; }
+#bubble .agentlogo[hidden] { display: none; }
 
 @keyframes flicker {
-  0%, 100% { box-shadow: 4px 4px 0 0 var(--purple-deep), 0 0 14px rgba(157, 123, 216, 0.35); }
-  50% { box-shadow: 4px 4px 0 0 var(--purple-deep), 0 0 22px rgba(196, 166, 245, 0.6); }
+  0%, 100% { box-shadow: 4px 4px 0 0 var(--purple-deep), 0 0 14px rgb(var(--purple-rgb) / 0.35); }
+  50% { box-shadow: 4px 4px 0 0 var(--purple-deep), 0 0 22px rgb(var(--purple-bright-rgb) / 0.6); }
 }
 
 /* accessibility: the ghost is always on screen, so honor reduced-motion by
@@ -211,14 +243,17 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   .char, .char.celebrate, .char.angry {
     animation: none;
-    filter: drop-shadow(0 0 7px rgba(157, 123, 216, 0.6)) drop-shadow(0 5px 5px rgba(0, 0, 0, 0.55));
+    filter: drop-shadow(0 0 7px rgb(var(--purple-rgb) / 0.6)) drop-shadow(0 5px 5px rgba(0, 0, 0, 0.55));
   }
   .char.sad { animation: none; } /* keeps its own dimmed filter */
+  .char.sleeping { animation: none; } /* keeps its own dimmed filter */
   #flames span { animation: none; }
+  /* hold the zzz steady as a static "z z z" so sleep still reads without motion */
+  #zzz span { animation: none; opacity: 0.9; transform: none; }
   .bubble, .bubble.show { transition: none; animation: none; }
   /* focus mode: hold the glow steady (the pad renders a static frame in JS) */
   #ghostwrap.writing #char {
     animation: none;
-    filter: drop-shadow(0 0 8px rgba(227, 178, 60, 0.6)) drop-shadow(0 5px 5px rgba(0, 0, 0, 0.55));
+    filter: drop-shadow(0 0 8px rgb(var(--amber-rgb) / 0.6)) drop-shadow(0 5px 5px rgba(0, 0, 0, 0.55));
   }
 }

@@ -21,6 +21,9 @@ node scripts/make_icon.js   # regenerate icons/icon.ico from the sprite
 
 No Node build step — the frontend is static files in `src/`.
 
+**`notify` subcommand** — `poltergeist.exe notify …` is intercepted at the top of
+`main()` before any window init. Used by agent hooks (see Agent notifications).
+
 ## Layout
 
 - `src-tauri/src/main.rs` — window setup (3 windows), Tauri commands, scheduler
@@ -55,6 +58,11 @@ No Node build step — the frontend is static files in `src/`.
   ghost): a month grid (dots on days with events, click a day to filter) over an
   agenda list (next 7 days by default). Read-only; events come from
   `load_calendar_events`, refreshed on the `calendar-updated` event.
+- `src/tokens.css` — the shared spectral palette (`--void`/`--purple`/`--ghost`/
+  `--muted`/`--danger`…), single source of truth `<link>`ed by all four windows.
+  Edit colors here, not per-window. `main.js` also reads the ghost/eye/blush/tear
+  vars at runtime for sprite cells, so they must stay on `:root` here. Only
+  `--cell` (the overlay's pixel unit) stays window-local in `style.css`.
 - `src/winpos.js` — remembers each window's on-screen position across launches
   (localStorage keyed by window label). Loaded by all three windows.
 - `src-tauri/scripts/make_icon.js` — generates `icons/icon.ico` (exe/shortcut
@@ -111,9 +119,13 @@ when the pubkey/endpoint isn't live.
 
 ## Ghost moods (frontend)
 
-`buildSprite(blink, mood)` swaps the face: `happy` (curved eyes + smile),
-`sad` (frown + tear), `angry` (slanted brows + gritted mouth), `normal`. The
-`writing` mood keeps the normal face; `setMood` adds a `.writing` class to
+`buildSprite(blink, mood, gaze)` swaps the face: `happy` (curved eyes + smile),
+`sad` (frown + tear), `angry` (slanted brows + gritted mouth), `normal`, plus the
+personality faces `curious` (open eyes + tiny smile), `yawn`, `surprised`, and
+`sleeping` (closed lids). **Keep the resting `normal`/`happy`/`sad`/`angry` faces
+in sync with `scripts/make_icon.js`** — it has its own `buildSprite` copy and the
+icon renders `normal`; the new moods are runtime-only so the icon is unaffected.
+The `writing` mood keeps the normal face; `setMood` adds a `.writing` class to
 `#ghostwrap` (an amber focus glow, CSS) and runs `startPad()` — a second pixel
 sprite (`buildPad`/`renderPad` → `#pad`, same grid-of-cells style as the ghost).
 We see the notebook's **back cover** (binding rings, label, shaded edge); the page
@@ -127,6 +139,24 @@ walking side-to-side (`PAD_HEADS`). In `main.js`:
   for a **poltergeist** reminder. Cleared on dismiss or when the bubble closes.
 - Blinking is gated on `prefers-reduced-motion`.
 
+**Personality (idle behaviors).** Three transient faces (`yawn`/`surprised`/
+`scrunch`) live *outside* the `mood` machine in a `transient` var so they never
+clobber a sulk / focus / bubble — `render()` prefers `transient`, then the hover
+`curious` peek, then `mood`. `flash(expr, ms, then)` shows one briefly (and is a no-op under
+reduced-motion, still running `then`).
+- **Glance:** hovering the idle ghost → `curious` + eyes track the cursor's side
+  via `gaze` (-1/0/1, set on `mousemove`, fed to `buildSprite`).
+- **Doze:** a reset `setTimeout` (`scheduleDoze`, `IDLE_MS` = 3 min; **not** a
+  poll) fires when `idle()` (normal, no bubble, focus idle, not hovered) → `yawn`
+  then `setMood("sleeping")` (dimmed `.char.sleeping` + the `#zzz` layer). Every
+  return to `normal` re-arms it; any other mood cancels it.
+- **Wake:** hover / a `reminder-due` / mousedown calls `wake()` → back to
+  `normal` + a `surprised` startle. **Drag:** mousedown flashes a `scrunch` (>.<)
+  briefly (settles on its own, so a missed mouseup during the OS drag can't leave
+  it stuck mid-squeeze).
+- Reduced-motion: no yawn/startle/zzz-drift; doze still lands on a static dimmed
+  sleeping face with a static `z z z`.
+
 ## Focus timer (Pomodoro)
 
 Frontend-only (no Rust). The settings **focus** tab has focus/break minute fields
@@ -139,6 +169,39 @@ sentinel — no ack, no sulk (like `__cal__`/`__update__`); its text reticks eac
 second and clicking it skips the rest of the break. Reminders are **not**
 suppressed during focus (they show through). A running session is ephemeral —
 not restored after an app restart. `fmt()` (M:SS) has an inline `console.assert`.
+
+## Agent notifications (Claude Code / Codex)
+
+The ghost nudges when a coding agent finishes a turn or needs action. An external
+hook runs `poltergeist.exe notify --agent <claude|codex> --event <finished|needs-action>`.
+For Codex, the form is `poltergeist.exe notify --from-codex '<json>'` — the last
+argument is parsed for a `type` field; values containing `approval`, `input`, or
+`permission` map to `needs-action`, everything else (including turn-complete) maps
+to `finished`. The `notify` subcommand is intercepted at the top of `main()` —
+it drops a JSON note in `cozy-reminder/inbox/` and exits before any window
+initializes.
+
+`start_inbox_watch` (a 2s tokio tick in `main.rs`) drains the inbox via
+`agents::drain_inbox` and emits `reminder-due` with `{id, label, agent, kind,
+poltergeist:false}`. Notes are deleted on drain so they fire exactly once — unlike
+regular reminders, no `active` dedupe is needed. Malformed note files are deleted
+and skipped so they can't wedge the inbox. Frontend (`main.js`) shows the vendor
+logo (`src/agent-claude.svg`, `src/agent-codex.svg` — these are geometric
+**approximations**; replace with official art as needed). On bubble show:
+`finished` → `celebrate()` (happy face + bounce), `needs-action` →
+`setMood("angry")` immediately (angry face + lit `#flames`, no sulk timer).
+**Chime fires for both** `finished` and `needs-action` (same chime path as regular
+reminders; respects mute). Agent ids (`__agent__<agent>__<event>`) are no-sulk/no-ack
+sentinels — dismissed without calling `ack_reminder` (like `__cal__`/`__break__`).
+
+Hook install: settings **Agents** tab → one-click install/uninstall per agent.
+`hooks.rs` does non-destructive merges: Claude inserts `Stop` (finished) and
+`Notification` (needs-action) hook entries into `~/.claude/settings.json` (JSON
+via `serde_json`); Codex sets a `notify` array in `~/.codex/config.toml` (TOML
+via `toml_edit` — new dep). `agent_hook_state` reports installed/uninstalled state
+for each agent. The Codex merge refuses to clobber a foreign `notify` key (errors
+with a message; only removes/overwrites keys it placed itself). **After installing,
+relaunch the agent** — hooks are read at agent startup, not dynamically.
 
 ## Auto-launch at login
 
@@ -248,8 +311,9 @@ not to reinvent — hence the three crates.
 
 ## Persistence
 
-`reminders.json`, `todos.json`, and `calendar.json` (`{ url, lead_minutes }`,
-Rust-owned because the feed is fetched with no window open) in
+`reminders.json`, `todos.json`, `calendar.json` (`{ url, lead_minutes }`,
+Rust-owned because the feed is fetched with no window open), and `inbox/`
+(transient agent note files, drained and deleted by `start_inbox_watch`) in
 `dirs::config_dir()/cozy-reminder/`.
 Corrupt / missing / **empty** reminders → seed defaults, never crash (an empty
 list would mean the ghost never nudges). To-dos are stored as raw JSON — no Rust

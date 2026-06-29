@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+  <!-- Anthropic/Claude asterisk mark: 6 spokes at 60° intervals -->
+  <g stroke="#c4a6f5" stroke-width="2.4" stroke-linecap="round">
+    <line x1="10" y1="2" x2="10" y2="18"/>
+    <line x1="16.93" y1="6" x2="3.07" y2="14"/>
+    <line x1="3.07" y1="6" x2="16.93" y2="14"/>
+  </g>
+</svg>

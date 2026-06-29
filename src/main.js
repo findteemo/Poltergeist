@@ -3,8 +3,11 @@ const W = 16, H = 16;
 
 // Build a little floating ghost on a 16x16 grid (CC0, authored here).
 // Returns a grid of palette keys; '.' = transparent.
-// mood: "normal" | "happy" | "sad" — changes eyes + mouth (+ a tear when sad).
-function buildSprite(blink, mood) {
+// mood: "normal" | "happy" | "sad" | "angry" | "curious" | "yawn" | "surprised"
+//   | "scrunch" (>.< squeeze, on drag) | "sleeping" — changes eyes + mouth.
+// gaze: -1 | 0 | 1 — horizontal pupil shift, only used by the open-eyed faces
+//   (normal/curious) so the ghost can glance toward the cursor while hovered.
+function buildSprite(blink, mood, gaze = 0) {
   const g = Array.from({ length: H }, () => Array(W).fill("."));
   const cx = 7.5;
   // domed top, straight sides
@@ -25,20 +28,32 @@ function buildSprite(blink, mood) {
   // face
   const put = (x, y, k) => { g[y][x] = k; };
   // eyes
-  if (blink) { put(5, 8, "o"); put(10, 8, "o"); }
-  else if (mood === "happy") { // ^ ^ curved-up eyes
+  if (blink) { put(5, 8, "o"); put(10, 8, "o"); } // mid-blink wink
+  else if (mood === "sleeping") { // soft closed lids
+    put(4, 8, "o"); put(5, 8, "o"); put(10, 8, "o"); put(11, 8, "o");
+  } else if (mood === "happy" || mood === "yawn") { // ^ ^ curved-up / squinted eyes
     put(4, 8, "e"); put(5, 7, "e"); put(6, 8, "e");
     put(9, 8, "e"); put(10, 7, "e"); put(11, 8, "e");
+  } else if (mood === "surprised") { // wide round eyes
+    put(4, 7, "e"); put(5, 7, "e"); put(4, 8, "e"); put(5, 8, "e");
+    put(10, 7, "e"); put(11, 7, "e"); put(10, 8, "e"); put(11, 8, "e");
+  } else if (mood === "scrunch") { // >.< squeezed-shut eyes pointing inward
+    put(4, 7, "e"); put(5, 8, "e"); put(4, 9, "e");   // >
+    put(11, 7, "e"); put(10, 8, "e"); put(11, 9, "e"); // <
   } else if (mood === "angry") { // \  / slanted brows
     put(4, 7, "e"); put(5, 8, "e"); put(11, 7, "e"); put(10, 8, "e");
-  } else {
-    put(5, 7, "e"); put(5, 8, "e"); put(10, 7, "e"); put(10, 8, "e");
+  } else { // normal / curious / writing — open pupils, glance via gaze
+    put(5 + gaze, 7, "e"); put(5 + gaze, 8, "e"); put(10 + gaze, 7, "e"); put(10 + gaze, 8, "e");
     if (mood === "sad") { put(11, 11, "t"); put(11, 12, "t"); } // tear down the cheek
   }
-  // mouth (none when normal)
+  // mouth (none when normal / sleeping)
   if (mood === "happy") { put(6, 11, "o"); put(7, 12, "o"); put(8, 12, "o"); put(9, 11, "o"); } // smile
+  else if (mood === "curious") { put(7, 12, "o"); put(8, 12, "o"); } // tiny interested smile
   else if (mood === "sad") { put(6, 12, "o"); put(7, 11, "o"); put(8, 11, "o"); put(9, 12, "o"); } // frown
   else if (mood === "angry") { put(6, 11, "o"); put(7, 11, "o"); put(8, 11, "o"); put(9, 11, "o"); } // gritted
+  else if (mood === "yawn") { put(6, 11, "o"); put(9, 11, "o"); put(7, 11, "e"); put(8, 11, "e"); put(7, 12, "e"); put(8, 12, "e"); } // wide open
+  else if (mood === "surprised") { put(7, 11, "o"); put(8, 11, "o"); put(7, 12, "e"); put(8, 12, "e"); } // small o
+  else if (mood === "scrunch") { put(7, 12, "e"); put(8, 12, "e"); } // tiny . mouth
   put(4, 10, "p"); put(11, 10, "p"); // blush
   return g;
 }
@@ -63,9 +78,13 @@ function setMood(m) {
   mood = m;
   charEl.classList.toggle("sad", m === "sad");
   charEl.classList.toggle("angry", m === "angry");
+  charEl.classList.toggle("sleeping", m === "sleeping"); // dimmed, slow breathing bob
   flamesEl.classList.toggle("lit", m === "angry"); // purple flames in poltergeist mode
   ghostwrapEl.classList.toggle("writing", m === "writing"); // shows the focus notebook
+  ghostwrapEl.classList.toggle("sleeping", m === "sleeping"); // shows the floating zzz
   if (m === "writing") startPad(); else stopPad();
+  // doze only counts down from a calm resting state; any other mood cancels it
+  if (m === "normal") scheduleDoze(); else clearTimeout(dozeTimer);
   render(false);
 }
 
@@ -132,8 +151,15 @@ function celebrate() {
   }, 1200);
 }
 
+// "petted" peek: while you hover the idle ghost it turns curious and its eyes
+// glance toward the cursor. Kept out of the `mood` state machine so it never
+// clobbers a sulk / focus / bubble state.
+let peeking = false;
+let gaze = 0;        // -1 left · 0 center · 1 right — pupil glance while hovered
+let transient = null; // brief one-off face ("yawn" | "surprised" | "scrunch"), outside `mood`
 function render(blink) {
-  const g = buildSprite(blink, mood);
+  const face = transient || (peeking && mood === "normal" ? "curious" : mood);
+  const g = buildSprite(blink, face, gaze);
   charEl.replaceChildren();
   for (let y = 0; y < H; y++)
     for (let x = 0; x < W; x++) {
@@ -148,13 +174,78 @@ render(false);
 // gentle blink every few seconds — gated on reduced-motion (it's real motion)
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
 let blinkTimer;
+function blinkOnce(then) {
+  render(true);
+  setTimeout(() => { render(false); then && then(); }, 150);
+}
+// irregular cadence (not a 4.2s metronome) + an occasional double-blink, so the
+// resting ghost reads as alive rather than looping. Gated on reduced-motion.
 function startBlink() {
-  clearInterval(blinkTimer);
+  clearTimeout(blinkTimer);
   if (reduceMotion.matches) return;
-  blinkTimer = setInterval(() => { render(true); setTimeout(() => render(false), 160); }, 4200);
+  blinkTimer = setTimeout(() => {
+    if (mood === "sleeping" || transient) { startBlink(); return; } // don't blink mid-yawn/asleep
+    if (Math.random() < 0.2) blinkOnce(() => setTimeout(() => blinkOnce(startBlink), 190));
+    else blinkOnce(startBlink);
+  }, 2600 + Math.random() * 3800);
 }
 startBlink();
 reduceMotion.addEventListener("change", () => { render(false); startBlink(); });
+
+// ---- personality: glance, doze, wake, startle ----
+// A brief one-off expression that settles back on its own. Reduced motion skips
+// the face flash entirely (still runs `then`, so doze→sleep still happens).
+let transientTimer;
+function flash(expr, ms, then) {
+  if (reduceMotion.matches) { then && then(); return; }
+  clearTimeout(transientTimer);
+  transient = expr;
+  render(false);
+  transientTimer = setTimeout(() => { transient = null; render(false); then && then(); }, ms);
+}
+
+// Doze off after a calm stretch with nothing going on. Driven by a reset timer,
+// not a poll, so the resting ghost costs nothing.
+const IDLE_MS = 3 * 60000; // ponytail: fixed 3 min; make a setting if anyone asks
+let dozeTimer;
+const idle = () => mood === "normal" && !currentId && focusPhase === "idle" && !peeking;
+function scheduleDoze() { clearTimeout(dozeTimer); dozeTimer = setTimeout(tryDoze, IDLE_MS); }
+function tryDoze() {
+  if (!idle()) return;
+  flash("yawn", 1000, () => { if (idle()) setMood("sleeping"); });
+}
+function wake() {
+  const wasAsleep = mood === "sleeping";
+  if (transient === "yawn") { clearTimeout(transientTimer); transient = null; }
+  if (wasAsleep) setMood("normal"); else { scheduleDoze(); render(false); }
+  if (wasAsleep) flash("surprised", 600); // a little startle on waking
+}
+scheduleDoze();
+
+// pet the ghost: it wakes if asleep, else turns curious and tracks the cursor.
+charEl.addEventListener("mouseenter", () => {
+  if (mood === "sleeping") { wake(); return; }
+  if (mood === "normal") { peeking = true; render(false); }
+});
+charEl.addEventListener("mousemove", (e) => {
+  if (!peeking) return;
+  const r = charEl.getBoundingClientRect();
+  const rel = (e.clientX - r.left) / r.width;
+  const g = rel < 0.4 ? -1 : rel > 0.6 ? 1 : 0;
+  if (g !== gaze) { gaze = g; render(false); }
+});
+charEl.addEventListener("mouseleave", () => {
+  if (peeking) { peeking = false; gaze = 0; render(false); }
+  scheduleDoze();
+});
+// grabbed → a quick surprised startle (settles even mid-drag, so a missed mouseup
+// can't leave it stuck wide-eyed)
+charEl.addEventListener("mousedown", (e) => {
+  if (mood === "sleeping") { wake(); return; }
+  if (e.button !== 0) return; // left-drag scrunches; right-click just opens settings
+  flash("scrunch", 700); // >.< squeeze on pickup
+  scheduleDoze();
+});
 
 // ---- reminders ----
 const { invoke } = window.__TAURI__.core;
@@ -216,6 +307,15 @@ function chime() {
 
 const bubble = document.getElementById("bubble");
 const bubbleText = bubble.querySelector(".text");
+const bubbleHint = bubble.querySelector(".hint");
+const bubbleLogo = bubble.querySelector(".agentlogo");
+const AGENT_LOGO = { claude: "agent-claude.svg", codex: "agent-codex.svg" };
+console.assert(AGENT_LOGO.claude && AGENT_LOGO.codex, "agent logos mapped");
+// the hint reflects what clicking actually does — not always "dismiss"
+const hintFor = (id) =>
+  id === UPDATE_ID ? "click to update" :
+  id === BREAK_ID ? "click to skip" :
+  "click to dismiss"; // reminders + calendar nudges
 
 // One bubble, but several reminders can be due at once. Queue them so each is
 // shown and acked in turn — otherwise a second due reminder overwrites the
@@ -233,22 +333,35 @@ function showNext() {
     currentId = null;
     bubble.classList.remove("show");
     if (mood === "sad" || mood === "angry") setMood("normal");
+    else scheduleDoze(); // back to idle — restart the doze countdown
     scheduleReport(); // bubble gone — shrink the clickable area back to the ghost
     return;
   }
   currentId = next.id;
   bubbleText.textContent = next.label;
+  bubbleHint.textContent = hintFor(next.id);
+  if (next.agent && AGENT_LOGO[next.agent]) {
+    bubbleLogo.src = AGENT_LOGO[next.agent];
+    bubbleLogo.hidden = false;
+  } else {
+    bubbleLogo.hidden = true;
+  }
   bubble.classList.add("show");
   scheduleReport(); // bubble now interactive — include it
   chime();
   // ignored too long → ghost gets sad, or angry+flames for poltergeist reminders
-  // (update + calendar bubbles don't sulk — they just wait for a click)
-  if (next.id !== UPDATE_ID && next.id !== BREAK_ID && !next.id.startsWith("__cal__"))
+  // (update + calendar + agent bubbles don't sulk — they just react on show)
+  if (next.id.startsWith("__agent__")) {
+    if (next.kind === "needs-action") setMood("angry"); // lights #flames (see setMood)
+    else celebrate(); // finished → happy bounce
+  } else if (next.id !== UPDATE_ID && next.id !== BREAK_ID && !next.id.startsWith("__cal__")) {
     moodTimer = setTimeout(() => setMood(next.poltergeist ? "angry" : "sad"), cryMs);
+  }
 }
 
 listen("reminder-due", (e) => {
   queue.push(e.payload);
+  wake(); // a nudge stirs the ghost if it had dozed off
   if (!currentId) showNext();
 });
 
@@ -267,6 +380,12 @@ bubble.addEventListener("click", async () => {
   }
   // calendar nudges have no backing reminder — just dismiss (no ack_reminder).
   if (currentId.startsWith("__cal__")) {
+    celebrate();
+    showNext();
+    return;
+  }
+  // agent pings have no backing reminder — just dismiss (no ack_reminder).
+  if (currentId.startsWith("__agent__")) {
     celebrate();
     showNext();
     return;
