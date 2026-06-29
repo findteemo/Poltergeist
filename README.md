@@ -60,6 +60,10 @@ reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v Poltergeist /
 - **Focus timer (Pomodoro)** — a *focus* tab with adjustable focus/break lengths:
   the ghost writes in a little notebook while you focus, then nudges you to take a
   break with a live countdown, looping focus → break until you stop.
+- **Agent notifications** — the ghost nudges you when Claude Code or Codex finishes
+  a turn (happy bounce) or needs your input (angry + purple flames). Set up in one
+  click from the settings *agents* tab — it wires the hooks into each agent's own
+  config automatically. Relaunch the agent once after installing.
 - **Gentle chime** on each nudge (toggleable), and an adjustable ghost size.
 - **Auto-launch at login** (Windows) — toggleable in settings, survives restarts.
 - Reminders, to-dos, and your calendar settings persist to JSON files in your OS
@@ -73,7 +77,7 @@ Data lives in the OS config dir (kept under `cozy-reminder` for backwards
 compatibility with earlier versions):
 
 - Windows: `%APPDATA%\cozy-reminder\` (`reminders.json`, `todos.json`,
-  `calendar.json`)
+  `calendar.json`, `inbox/` for transient agent notes)
 - macOS: `~/Library/Application Support/cozy-reminder/`
 
 Delete `reminders.json` to reset reminders to defaults. A corrupt, missing, or

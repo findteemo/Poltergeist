@@ -21,6 +21,9 @@ node scripts/make_icon.js   # regenerate icons/icon.ico from the sprite
 
 No Node build step — the frontend is static files in `src/`.
 
+**`notify` subcommand** — `poltergeist.exe notify …` is intercepted at the top of
+`main()` before any window init. Used by agent hooks (see Agent notifications).
+
 ## Layout
 
 - `src-tauri/src/main.rs` — window setup (3 windows), Tauri commands, scheduler
@@ -167,6 +170,39 @@ second and clicking it skips the rest of the break. Reminders are **not**
 suppressed during focus (they show through). A running session is ephemeral —
 not restored after an app restart. `fmt()` (M:SS) has an inline `console.assert`.
 
+## Agent notifications (Claude Code / Codex)
+
+The ghost nudges when a coding agent finishes a turn or needs action. An external
+hook runs `poltergeist.exe notify --agent <claude|codex> --event <finished|needs-action>`.
+For Codex, the form is `poltergeist.exe notify --from-codex '<json>'` — the last
+argument is parsed for a `type` field; values containing `approval`, `input`, or
+`permission` map to `needs-action`, everything else (including turn-complete) maps
+to `finished`. The `notify` subcommand is intercepted at the top of `main()` —
+it drops a JSON note in `cozy-reminder/inbox/` and exits before any window
+initializes.
+
+`start_inbox_watch` (a 2s tokio tick in `main.rs`) drains the inbox via
+`agents::drain_inbox` and emits `reminder-due` with `{id, label, agent, kind,
+poltergeist:false}`. Notes are deleted on drain so they fire exactly once — unlike
+regular reminders, no `active` dedupe is needed. Malformed note files are deleted
+and skipped so they can't wedge the inbox. Frontend (`main.js`) shows the vendor
+logo (`src/agent-claude.svg`, `src/agent-codex.svg` — these are geometric
+**approximations**; replace with official art as needed). On bubble show:
+`finished` → `celebrate()` (happy face + bounce), `needs-action` →
+`setMood("angry")` immediately (angry face + lit `#flames`, no sulk timer).
+**Chime fires for both** `finished` and `needs-action` (same chime path as regular
+reminders; respects mute). Agent ids (`__agent__<agent>__<event>`) are no-sulk/no-ack
+sentinels — dismissed without calling `ack_reminder` (like `__cal__`/`__break__`).
+
+Hook install: settings **Agents** tab → one-click install/uninstall per agent.
+`hooks.rs` does non-destructive merges: Claude inserts `Stop` (finished) and
+`Notification` (needs-action) hook entries into `~/.claude/settings.json` (JSON
+via `serde_json`); Codex sets a `notify` array in `~/.codex/config.toml` (TOML
+via `toml_edit` — new dep). `agent_hook_state` reports installed/uninstalled state
+for each agent. The Codex merge refuses to clobber a foreign `notify` key (errors
+with a message; only removes/overwrites keys it placed itself). **After installing,
+relaunch the agent** — hooks are read at agent startup, not dynamically.
+
 ## Auto-launch at login
 
 `register_autostart()` (Windows only) writes the running exe path to
@@ -275,8 +311,9 @@ not to reinvent — hence the three crates.
 
 ## Persistence
 
-`reminders.json`, `todos.json`, and `calendar.json` (`{ url, lead_minutes }`,
-Rust-owned because the feed is fetched with no window open) in
+`reminders.json`, `todos.json`, `calendar.json` (`{ url, lead_minutes }`,
+Rust-owned because the feed is fetched with no window open), and `inbox/`
+(transient agent note files, drained and deleted by `start_inbox_watch`) in
 `dirs::config_dir()/cozy-reminder/`.
 Corrupt / missing / **empty** reminders → seed defaults, never crash (an empty
 list would mean the ghost never nudges). To-dos are stored as raw JSON — no Rust
