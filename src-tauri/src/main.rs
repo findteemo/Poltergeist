@@ -378,6 +378,36 @@ fn register_autostart() {
 }
 
 fn main() {
+    // Agent-notify subcommand: an external hook runs `poltergeist notify …` which
+    // just drops a note file in the inbox and exits — never spins up a window.
+    // Intercepted here, before any Tauri/WebView init.
+    let args: Vec<String> = std::env::args().collect();
+    if args.get(1).map(String::as_str) == Some("notify") {
+        let config = store::path();
+        let dir = agents::inbox_dir(config.parent().unwrap_or(&config));
+        let flag = |name: &str| {
+            args.iter().position(|a| a == name).and_then(|i| args.get(i + 1)).cloned()
+        };
+        if args.iter().any(|a| a == "--from-codex") {
+            // Codex passes the notification as a single JSON arg with a `type` field.
+            // ponytail: defensive map — only an explicit approval/input type is
+            // "needs-action"; everything else (incl. turn-complete) is "finished".
+            let event = args.last()
+                .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok())
+                .and_then(|v| v.get("type").and_then(|t| t.as_str()).map(String::from))
+                .map(|t| if t.contains("approval") || t.contains("input") || t.contains("permission") {
+                    "needs-action"
+                } else {
+                    "finished"
+                })
+                .unwrap_or("finished");
+            agents::write_note(&dir, "codex", event);
+        } else if let (Some(agent), Some(event)) = (flag("--agent"), flag("--event")) {
+            agents::write_note(&dir, &agent, &event);
+        }
+        std::process::exit(0);
+    }
+
     // ponytail: trim WebView2's RAM — cap renderer processes and drop the GPU
     // process. Cuts the process count/footprint; raise the limit if the UI lags.
     #[cfg(windows)]
