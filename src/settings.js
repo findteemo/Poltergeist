@@ -354,3 +354,34 @@ async function syncCalVis() { calVisEl.checked = await invoke("calendar_visible"
 syncCalVis();
 listen("calendar-visibility", (e) => (calVisEl.checked = !!e.payload));
 window.__TAURI__.window.getCurrentWindow().onFocusChanged((e) => { if (e.payload) syncCalVis(); });
+
+// ---- agents (Claude Code / Codex notifications) ----
+const agentStatus = document.getElementById("agentStatus");
+const agentBtns = [...document.querySelectorAll(".agentbtn")];
+
+async function refreshAgentState() {
+  const [claude, codex] = await invoke("agent_hook_state");
+  const state = { claude, codex };
+  for (const btn of agentBtns) {
+    const on = state[btn.dataset.agent];
+    btn.textContent = on ? "uninstall hooks" : "install hooks";
+    btn.classList.toggle("on", on);
+  }
+}
+refreshAgentState();
+
+for (const btn of agentBtns) {
+  btn.addEventListener("click", async () => {
+    const agent = btn.dataset.agent;
+    const installed = btn.classList.contains("on");
+    try {
+      await invoke(installed ? "uninstall_agent_hook" : "install_agent_hook", { agent });
+      agentStatus.textContent = installed
+        ? `${agent} hooks removed`
+        : `${agent} hooks installed — relaunch ${agent}`;
+    } catch (e) {
+      agentStatus.textContent = `✗ ${e}`;
+    }
+    refreshAgentState();
+  });
+}

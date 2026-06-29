@@ -75,6 +75,30 @@ fn quit_app(app: AppHandle) {
     app.exit(0);
 }
 
+/// (claude_installed, codex_installed) — for the settings Agents tab.
+#[tauri::command]
+fn agent_hook_state() -> (bool, bool) {
+    (hooks::claude_state(), hooks::codex_state())
+}
+
+#[tauri::command]
+fn install_agent_hook(agent: String) -> Result<(), String> {
+    match agent.as_str() {
+        "claude" => hooks::install_claude(),
+        "codex" => hooks::install_codex(),
+        _ => Err(format!("unknown agent {agent}")),
+    }
+}
+
+#[tauri::command]
+fn uninstall_agent_hook(agent: String) -> Result<(), String> {
+    match agent.as_str() {
+        "claude" => hooks::uninstall_claude(),
+        "codex" => hooks::uninstall_codex(),
+        _ => Err(format!("unknown agent {agent}")),
+    }
+}
+
 /// The frontend reports which rects (ghost + visible bubble) should stay
 /// clickable; the click-through poll makes the rest of the window pass clicks
 /// through. Cross-platform store; only the Windows poll acts on it for now.
@@ -535,7 +559,10 @@ fn main() {
             load_calendar_events,
             set_calendar_visible,
             calendar_visible,
-            quit_app
+            quit_app,
+            agent_hook_state,
+            install_agent_hook,
+            uninstall_agent_hook
         ])
         .run(tauri::generate_context!())
         .expect("error while running Poltergeist");
