@@ -32,14 +32,15 @@ pub fn merge_claude(json: &str, exe: &str) -> String {
         .entry("hooks")
         .or_insert_with(|| serde_json::json!({}));
     if !hooks.is_object() { *hooks = serde_json::json!({}); }
-    for (event, tail) in [("Stop", "--agent claude --event finished"),
-                          ("Notification", "--agent claude --event needs-action")] {
+    for (event, tail) in [("Stop", CLAUDE_FINISHED),
+                          ("Notification", CLAUDE_NEEDS)] {
         let cmd = claude_cmd(exe, tail);
         let arr = hooks
             .as_object_mut()
             .unwrap()
             .entry(event)
             .or_insert_with(|| serde_json::json!([]));
+        if !arr.is_array() { *arr = serde_json::json!([]); }
         let already = arr.as_array().map(|a| {
             a.iter().any(|g| g.to_string().contains(tail))
         }).unwrap_or(false);
@@ -216,6 +217,14 @@ mod tests {
         let twice = merge_codex(&once, "p.exe").unwrap();
         assert_eq!(twice.matches("notify =").count(), 1,
                    "exactly one notify key after two merges; got:\n{twice}");
+    }
+
+    // Fix pass 2 — Change 2: non-array event value is replaced with empty array
+    #[test]
+    fn merge_claude_handles_non_array_event() {
+        let bad = r#"{"hooks":{"Stop":null}}"#;
+        let out = merge_claude(bad, "p.exe");
+        assert!(has_claude(&out), "our finished hook was added despite Stop:null");
     }
 
     // Fix 4b: merge_claude must not panic when "hooks" exists but isn't an object
