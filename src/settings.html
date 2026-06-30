@@ -269,7 +269,6 @@
     <button class="tabbtn" data-tab="todo" role="tab" id="tabbtn-todo" aria-controls="tab-todo" aria-selected="false">to-do</button>
     <button class="tabbtn" data-tab="calendar" role="tab" id="tabbtn-calendar" aria-controls="tab-calendar" aria-selected="false">calendar</button>
     <button class="tabbtn" data-tab="focus" role="tab" id="tabbtn-focus" aria-controls="tab-focus" aria-selected="false">focus</button>
-    <button class="tabbtn" data-tab="agents" role="tab" id="tabbtn-agents" aria-controls="tab-agents" aria-selected="false">agents</button>
     <button class="tabbtn" data-tab="settings" role="tab" id="tabbtn-settings" aria-controls="tab-settings" aria-selected="false">settings</button>
   </div>
 
@@ -337,21 +336,6 @@
       <p class="calhint">The ghost writes while you focus, then nudges you to break with a countdown. Loops until you stop.</p>
     </section>
 
-    <!-- AGENTS (Claude Code / Codex notifications) -->
-    <section class="tab" id="tab-agents" role="tabpanel" aria-labelledby="tabbtn-agents">
-      <h2 class="grim">agents</h2>
-      <div class="optrow">
-        <span>Claude Code</span>
-        <button class="add agentbtn" id="claudeHook" data-agent="claude">install hooks</button>
-      </div>
-      <div class="optrow">
-        <span>Codex</span>
-        <button class="add agentbtn" id="codexHook" data-agent="codex">install hooks</button>
-      </div>
-      <p class="calstatus" id="agentStatus" role="status" aria-live="polite"></p>
-      <p class="calhint">The ghost nudges you when an agent finishes a turn or needs your input. Installing edits that agent's own config (~/.claude/settings.json, ~/.codex/config.toml). Quit &amp; relaunch the agent after installing.</p>
-    </section>
-
     <!-- SETTINGS -->
     <section class="tab" id="tab-settings" role="tabpanel" aria-labelledby="tabbtn-settings">
       <h2 class="grim">settings</h2>
@@ -367,6 +351,23 @@
         <label for="autostart">launch at login</label>
         <input type="checkbox" id="autostart" />
       </div>
+      <div class="sizerow opt">
+        <label for="nag">remind again every</label>
+        <input type="number" id="nag" min="0" max="60" step="1" />
+        <span class="mins">min · 0 = off</span>
+      </div>
+
+      <!-- AGENTS (Claude Code / Codex notifications) -->
+      <h2 class="grim" style="margin-top: var(--sp4)">agents</h2>
+      <div class="optrow" style="margin-top: 0; padding-top: 0; border-top: none">
+        <span>Claude Code</span>
+        <button class="add agentbtn" id="claudeHook" data-agent="claude">install hooks</button>
+      </div>
+      <div class="optrow">
+        <span>Codex</span>
+        <button class="add agentbtn" id="codexHook" data-agent="codex">install hooks</button>
+      </div>
+      <p class="calstatus" id="agentStatus" role="status" aria-live="polite"></p>
     </section>
   </div>
 

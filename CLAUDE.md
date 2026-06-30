@@ -137,6 +137,11 @@ walking side-to-side (`PAD_HEADS`). In `main.js`:
 - A shown bubble starts a timer (`cryMs`, settable in settings, default 1 min);
   if it elapses unacked → `setMood("sad")`, or `setMood("angry")` + lit `#flames`
   for a **poltergeist** reminder. Cleared on dismiss or when the bubble closes.
+- A shown bubble also arms a repeating re-chime (`nagTimer` = `setInterval(chime,
+  nagMs)`, settable in settings as "remind again every", default 5 min, `0` =
+  off) so an unacked reminder keeps nudging by sound. Cleared alongside `moodTimer`
+  (showNext + bubble click). Only regular reminders — not `__update__`/`__break__`/
+  `__cal__`/`__agent__`. Respects the chime mute (via `chime()`).
 - Blinking is gated on `prefers-reduced-motion`.
 
 **Personality (idle behaviors).** Three transient faces (`yawn`/`surprised`/
@@ -194,7 +199,8 @@ logo (`src/agent-claude.svg`, `src/agent-codex.svg` — these are geometric
 reminders; respects mute). Agent ids (`__agent__<agent>__<event>`) are no-sulk/no-ack
 sentinels — dismissed without calling `ack_reminder` (like `__cal__`/`__break__`).
 
-Hook install: settings **Agents** tab → one-click install/uninstall per agent.
+Hook install: the **agents** section of the settings tab → one-click
+install/uninstall per agent.
 `hooks.rs` does non-destructive merges: Claude inserts `Stop` (finished) and
 `Notification` (needs-action) hook entries into `~/.claude/settings.json` (JSON
 via `serde_json`); Codex sets a `notify` array in `~/.codex/config.toml` (TOML

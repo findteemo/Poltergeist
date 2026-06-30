@@ -279,6 +279,15 @@ invoke("set_todo_visible", { visible: localStorage.getItem("todoVisible") === "1
 let cryMs = (Number(localStorage.getItem("cryMins")) || 1) * 60000;
 listen("cry-mins", (e) => { cryMs = Number(e.payload) * 60000; });
 
+// nag timer: re-chime every N min while a reminder sits unacked (0 = off).
+// Not `|| 5` — a stored "0" is a real value (off), not a missing default.
+function readNagMs() {
+  const v = localStorage.getItem("nagMins");
+  return (v == null || v === "" ? 5 : Number(v)) * 60000;
+}
+let nagMs = readNagMs();
+listen("nag-mins", (e) => { nagMs = Number(e.payload) * 60000; });
+
 // ---- chime ----
 // Gentle two-note WebAudio chime on fire — no audio asset to bundle. Mute state
 // is mirrored from settings (same pattern as char-cell). Default: on.
@@ -323,11 +332,13 @@ const hintFor = (id) =>
 const queue = [];
 let currentId = null;
 let moodTimer;
+let nagTimer; // setInterval re-chiming an unacked reminder; cleared with moodTimer
 const UPDATE_ID = "__update__"; // sentinel: this bubble installs an update, not a reminder
 const BREAK_ID = "__break__";   // sentinel: a Pomodoro break countdown (no ack, no sulk)
 
 function showNext() {
   clearTimeout(moodTimer);
+  clearInterval(nagTimer);
   const next = queue.shift();
   if (!next) {
     currentId = null;
@@ -356,6 +367,8 @@ function showNext() {
     else celebrate(); // finished → happy bounce
   } else if (next.id !== UPDATE_ID && next.id !== BREAK_ID && !next.id.startsWith("__cal__")) {
     moodTimer = setTimeout(() => setMood(next.poltergeist ? "angry" : "sad"), cryMs);
+    // keep nudging by sound until acked (chime() self-mutes if chimes are off)
+    if (nagMs > 0) nagTimer = setInterval(chime, nagMs);
   }
 }
 
@@ -368,6 +381,7 @@ listen("reminder-due", (e) => {
 bubble.addEventListener("click", async () => {
   if (!currentId) return;
   clearTimeout(moodTimer);
+  clearInterval(nagTimer);
   if (currentId === UPDATE_ID) {
     bubbleText.textContent = "updating…";
     try {

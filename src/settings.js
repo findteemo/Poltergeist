@@ -33,6 +33,17 @@ cryEl.addEventListener("input", () => {
   emit("cry-mins", m);
 });
 
+// nag timer: re-chime an unacked reminder every N min (0 = off). Same live-push
+// pattern; the stored "0" is meaningful, so default only when nothing is stored.
+const nagEl = document.getElementById("nag");
+const storedNag = localStorage.getItem("nagMins");
+nagEl.value = storedNag == null ? "5" : storedNag;
+nagEl.addEventListener("input", () => {
+  const m = Math.min(60, Math.max(0, Number(nagEl.value) || 0));
+  localStorage.setItem("nagMins", m);
+  emit("nag-mins", m);
+});
+
 // ---- focus timer (Pomodoro) ----
 // Durations persist locally + push live to the ghost; start/stop is a toggle.
 // The ghost runs the clock and emits `focus-status` back for the label.
