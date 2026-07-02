@@ -15,12 +15,44 @@ sizeEl.addEventListener("input", () => {
   emit("char-cell", Number(sizeEl.value));
 });
 
+// theme: persisted locally (shared across windows), applied live by theme.js
+// in every window via the `theme-changed` event.
+const themeEl = document.getElementById("theme");
+themeEl.value = localStorage.getItem("theme") || "spectral";
+themeEl.addEventListener("change", () => {
+  localStorage.setItem("theme", themeEl.value);
+  emit("theme-changed", themeEl.value);
+});
+
+// streak: read-only display of the day-streak the ghost keeps in localStorage.
+// A broken streak (last ack older than yesterday) reads as none until re-earned.
+const streakEl = document.getElementById("streak");
+const localDay = (d) => { const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
+function showStreak() {
+  const count = Number(localStorage.getItem("streakCount") || 0);
+  const last = localStorage.getItem("streakLastDate");
+  const today = localDay(new Date());
+  const yest = localDay(new Date(Date.now() - 86400000));
+  const alive = count > 0 && (last === today || last === yest);
+  streakEl.textContent = alive ? `🔥 ${count} day${count === 1 ? "" : "s"}` : "start one today ✦";
+}
+showStreak();
+listen("streak-changed", showStreak);
+
 // chime toggle: persisted locally, pushed live to the character window
 const chimeEl = document.getElementById("chime");
 chimeEl.checked = localStorage.getItem("chimeMuted") !== "1"; // checked = chime on
 chimeEl.addEventListener("change", () => {
   localStorage.setItem("chimeMuted", chimeEl.checked ? "0" : "1");
   emit("chime-toggle", chimeEl.checked);
+});
+
+// idle chatter toggle: same pattern (checked = chatter on, default on)
+const chatterEl = document.getElementById("chatter");
+chatterEl.checked = localStorage.getItem("chatterOff") !== "1";
+chatterEl.addEventListener("change", () => {
+  localStorage.setItem("chatterOff", chatterEl.checked ? "0" : "1");
+  emit("chatter-toggle", chatterEl.checked);
 });
 
 // cry timer: minutes a reminder can sit ignored before the ghost reacts.

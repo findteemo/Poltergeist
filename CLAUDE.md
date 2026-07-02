@@ -63,8 +63,14 @@ No Node build step — the frontend is static files in `src/`.
   Edit colors here, not per-window. `main.js` also reads the ghost/eye/blush/tear
   vars at runtime for sprite cells, so they must stay on `:root` here. Only
   `--cell` (the overlay's pixel unit) stays window-local in `style.css`.
+  **Themes:** `:root` is the default `spectral` palette; `:root[data-theme="…"]`
+  blocks (`matcha`, `slate`) override the palette vars. See `theme.js`.
+- `src/theme.js` — shared theme applier `<script>`'d by all four windows (like
+  `winpos.js`). Reads `localStorage.theme` → sets `<html data-theme>` (flips the
+  tokens.css block); listens `theme-changed` (emitted by the settings dropdown) to
+  re-apply live. The ghost sprite recolors for free — cells reference `var(--ghost)`.
 - `src/winpos.js` — remembers each window's on-screen position across launches
-  (localStorage keyed by window label). Loaded by all three windows.
+  (localStorage keyed by window label). Loaded by all four windows.
 - `src-tauri/scripts/make_icon.js` — generates `icons/icon.ico` (exe/shortcut
   icon) **and** `icons/icon.rgba` (runtime window icon via `Image::new`) from the
   **same ghost sprite**. Keep its `buildSprite()` in sync with `src/main.js`.
@@ -143,6 +149,12 @@ walking side-to-side (`PAD_HEADS`). In `main.js`:
   (showNext + bubble click). Only regular reminders — not `__update__`/`__break__`/
   `__cal__`/`__agent__`. Respects the chime mute (via `chime()`).
 - Blinking is gated on `prefers-reduced-motion`.
+- **Day streak:** acking a *real* reminder calls `bumpStreak()` (sentinels return
+  earlier, so they don't count). Consecutive-day count + last-ack day live in
+  `localStorage` (`streakCount`/`streakLastDate`); a broken streak restarts at 1 on
+  the next ack. Hitting a `STREAK_MILESTONES` day (3/7/14/30/60/100) pushes a
+  one-off `__streak__` cheer bubble (chimes + `celebrate()`, no ack/sulk, auto-fades
+  like `__idle__`). `emit("streak-changed")` refreshes the settings display.
 
 **Personality (idle behaviors).** Three transient faces (`yawn`/`surprised`/
 `scrunch`) live *outside* the `mood` machine in a `transient` var so they never
@@ -159,6 +171,15 @@ reduced-motion, still running `then`).
   `normal` + a `surprised` startle. **Drag:** mousedown flashes a `scrunch` (>.<)
   briefly (settles on its own, so a missed mouseup during the OS drag can't leave
   it stuck mid-squeeze).
+- **Chatter:** a self-rescheduling `setTimeout` (`scheduleChatter`, random 4–8 min;
+  **not** a poll) mutters a random line from `IDLE_LINES` when `idle()` (and not
+  disabled via the settings "idle chatter" toggle — `chatterOff`/`chatter-toggle`,
+  same live-push pattern as the chime mute) — a bubble
+  under the `IDLE_ID` (`__idle__`) sentinel. Ambient only: **silent** (no chime),
+  no ack, no sulk (like `__cal__`/`__break__`), and **auto-fades** after ~5s (reuses
+  `moodTimer` → `showNext`); clicking dismisses early with no celebrate. Skips (and
+  just re-arms) whenever not `idle()`, so it never interrupts a real bubble/sleep/
+  focus/hover.
 - Reduced-motion: no yawn/startle/zzz-drift; doze still lands on a static dimmed
   sleeping face with a static `z z z`.
 

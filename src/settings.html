@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Poltergeist</title>
   <link rel="stylesheet" href="tokens.css" />
+  <script src="theme.js"></script>
   <style>
     /* ── grimoire: the ghost's little book. Palette is the shared spectral set
        (tokens.css); the look is carried by an ornamented "page", ledger-style
@@ -181,6 +182,13 @@
     .sizerow input[type=checkbox] {
       margin-left: auto; accent-color: var(--purple); width: 15px; height: 15px; cursor: pointer;
     }
+    /* dropdowns (theme) — match the pixel style of the row unit-select, right-aligned */
+    .sizerow select {
+      margin-left: auto; border: 2px solid var(--purple-deep); border-radius: 0;
+      padding: 3px 6px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.5px;
+      color: var(--text); background: var(--void); color-scheme: dark; cursor: pointer;
+    }
+    .sizerow select:focus { outline: none; border-color: var(--purple); }
     .opt input[type=number] {
       width: 54px; border: 2px solid var(--purple-deep); border-radius: 0;
       padding: 3px 4px; font-family: var(--mono); font-size: 11px;
@@ -337,15 +345,31 @@
     </section>
 
     <!-- SETTINGS -->
-    <section class="tab" id="tab-settings" role="tabpanel" aria-labelledby="tabbtn-settings">
+    <section class="tab scroll" id="tab-settings" role="tabpanel" aria-labelledby="tabbtn-settings">
       <h2 class="grim">settings</h2>
       <div class="sizerow">
         <label for="size">ghost size</label>
         <input type="range" id="size" min="5" max="14" step="1" />
       </div>
       <div class="sizerow">
+        <label for="theme">theme</label>
+        <select id="theme">
+          <option value="spectral">spectral</option>
+          <option value="matcha">matcha</option>
+          <option value="slate">slate</option>
+        </select>
+      </div>
+      <div class="sizerow">
         <label for="chime">chime on nudge</label>
         <input type="checkbox" id="chime" />
+      </div>
+      <div class="sizerow">
+        <label for="chatter">idle chatter</label>
+        <input type="checkbox" id="chatter" />
+      </div>
+      <div class="sizerow">
+        <label>streak</label>
+        <span id="streak" class="mins"></span>
       </div>
       <div class="sizerow">
         <label for="autostart">launch at login</label>

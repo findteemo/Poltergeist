@@ -295,6 +295,10 @@ const MUTE_KEY = "chimeMuted";
 let muted = localStorage.getItem(MUTE_KEY) === "1";
 listen("chime-toggle", (e) => { muted = !e.payload; localStorage.setItem(MUTE_KEY, muted ? "1" : "0"); });
 
+// idle chatter on/off (default on). Toggled live from settings, same pattern as chime.
+let chatterOff = localStorage.getItem("chatterOff") === "1";
+listen("chatter-toggle", (e) => { chatterOff = !e.payload; localStorage.setItem("chatterOff", chatterOff ? "1" : "0"); });
+
 let audioCtx;
 function chime() {
   if (muted) return;
@@ -324,6 +328,7 @@ console.assert(AGENT_LOGO.claude && AGENT_LOGO.codex, "agent logos mapped");
 const hintFor = (id) =>
   id === UPDATE_ID ? "click to update" :
   id === BREAK_ID ? "click to skip" :
+  id === IDLE_ID || id === STREAK_ID ? "" : // ambient / cheer — no call to action
   "click to dismiss"; // reminders + calendar nudges
 
 // One bubble, but several reminders can be due at once. Queue them so each is
@@ -335,6 +340,8 @@ let moodTimer;
 let nagTimer; // setInterval re-chiming an unacked reminder; cleared with moodTimer
 const UPDATE_ID = "__update__"; // sentinel: this bubble installs an update, not a reminder
 const BREAK_ID = "__break__";   // sentinel: a Pomodoro break countdown (no ack, no sulk)
+const IDLE_ID = "__idle__";     // sentinel: an ambient idle mutter (no ack, no sulk, no chime, auto-fades)
+const STREAK_ID = "__streak__"; // sentinel: a day-streak milestone cheer (no ack, no sulk, chimes + celebrates, auto-fades)
 
 function showNext() {
   clearTimeout(moodTimer);
@@ -359,10 +366,15 @@ function showNext() {
   }
   bubble.classList.add("show");
   scheduleReport(); // bubble now interactive — include it
-  chime();
+  if (next.id !== IDLE_ID) chime(); // idle mutters are silent
   // ignored too long → ghost gets sad, or angry+flames for poltergeist reminders
-  // (update + calendar + agent bubbles don't sulk — they just react on show)
-  if (next.id.startsWith("__agent__")) {
+  // (update + calendar + agent + idle bubbles don't sulk — they just react on show)
+  if (next.id === IDLE_ID) {
+    moodTimer = setTimeout(showNext, 5000); // ambient — fades on its own after ~5s
+  } else if (next.id === STREAK_ID) {
+    celebrate(); // milestone cheer: happy bounce, then fades on its own
+    moodTimer = setTimeout(showNext, 5000);
+  } else if (next.id.startsWith("__agent__")) {
     if (next.kind === "needs-action") setMood("angry"); // lights #flames (see setMood)
     else celebrate(); // finished → happy bounce
   } else if (next.id !== UPDATE_ID && next.id !== BREAK_ID && !next.id.startsWith("__cal__")) {
@@ -378,6 +390,47 @@ listen("reminder-due", (e) => {
   if (!currentId) showNext();
 });
 
+// Ambient idle chatter: every so often the resting ghost mutters to itself. Purely
+// for personality — silent, no ack, auto-fades (see IDLE_ID handling in showNext).
+const IDLE_LINES = [
+  "...bored", "psst — water?", "still slouching 👀", "boo.", "hi :)",
+  "you good?", "*floats*", "stretch time?", "sip sip", "don't forget to blink",
+  "cozy in here", "back straight!", "*wiggles*",
+];
+console.assert(IDLE_LINES.length > 0, "idle line pool must be non-empty");
+function scheduleChatter() {
+  // ponytail: random 4–8 min; a self-rescheduling timeout, not a poll (matches scheduleDoze)
+  setTimeout(() => {
+    if (!chatterOff && idle()) { // off via settings, or never interrupt a real bubble / sleep / focus / hover
+      queue.push({ id: IDLE_ID, label: IDLE_LINES[Math.floor(Math.random() * IDLE_LINES.length)] });
+      if (!currentId) showNext();
+    }
+    scheduleChatter();
+  }, (4 + Math.random() * 4) * 60000);
+}
+scheduleChatter();
+
+// Day streak: consecutive calendar days on which you acked at least one real
+// reminder. Kept in localStorage (shared with the settings display via
+// `streak-changed`). A milestone lands a one-off cheer bubble.
+const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100];
+const localDay = (d) => { const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
+function bumpStreak() {
+  const today = localDay(new Date());
+  const yest = localDay(new Date(Date.now() - 86400000));
+  const last = localStorage.getItem("streakLastDate");
+  if (last === today) return; // already counted a reminder today
+  const count = last === yest ? Number(localStorage.getItem("streakCount") || 0) + 1 : 1;
+  localStorage.setItem("streakCount", count);
+  localStorage.setItem("streakLastDate", today);
+  emit("streak-changed"); // refresh the settings display if it's open
+  if (STREAK_MILESTONES.includes(count)) {
+    queue.push({ id: STREAK_ID, label: `🔥 ${count}-day streak!` });
+    if (!currentId) showNext();
+  }
+}
+console.assert(STREAK_MILESTONES.includes(7) && !STREAK_MILESTONES.includes(5), "streak milestone lookup");
+
 bubble.addEventListener("click", async () => {
   if (!currentId) return;
   clearTimeout(moodTimer);
@@ -390,6 +443,11 @@ bubble.addEventListener("click", async () => {
       bubbleText.textContent = "update failed";
       setTimeout(showNext, 1600); // don't leave the bubble stuck
     }
+    return;
+  }
+  // idle mutter / streak cheer — no backing reminder, just dismiss early.
+  if (currentId === IDLE_ID || currentId === STREAK_ID) {
+    showNext();
     return;
   }
   // calendar nudges have no backing reminder — just dismiss (no ack_reminder).
@@ -411,6 +469,7 @@ bubble.addEventListener("click", async () => {
     return;
   }
   await invoke("ack_reminder", { id: currentId });
+  bumpStreak(); // only real reminders count toward the day streak
   celebrate();
   showNext();
 });

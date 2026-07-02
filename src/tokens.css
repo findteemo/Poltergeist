@@ -29,3 +29,46 @@
   --danger-bright: #e89;
   --mono: "Cascadia Code", "Consolas", "SF Mono", "Menlo", monospace;
 }
+
+/* Alternate themes: applied via document.documentElement.dataset.theme (see
+   theme.js, shared by all four windows). Each block only overrides the palette
+   colors — layout vars, --amber-rgb (focus glow), and --mono stay from :root.
+   Colors are hand-tuned but freely tweakable; --muted must clear ~4.5:1 on --row. */
+:root[data-theme="matcha"] {
+  --void: #0d1410;
+  --panel: #14201a;
+  --row: #1a281f;
+  --row-hover: #1f2f24;
+  --purple: #83c69a;
+  --purple-bright: #a8e0b8;
+  --purple-deep: #24422f;
+  --purple-rgb: 131 198 154;
+  --purple-bright-rgb: 168 224 184;
+  --ghost: #eaf5ec;
+  --ghost-shade: #c2ddc9;
+  --ghost-outline: #1b3325;
+  --eye: #10231a;
+  --blush: #a8e0b8;
+  --tear: #8fc7f5;
+  --text: #d3ebd8;
+  --muted: #8fb89c;
+}
+:root[data-theme="slate"] {
+  --void: #0e1116;
+  --panel: #161b24;
+  --row: #1c222d;
+  --row-hover: #212836;
+  --purple: #7f9cc4;
+  --purple-bright: #a8c0e0;
+  --purple-deep: #2a3546;
+  --purple-rgb: 127 156 196;
+  --purple-bright-rgb: 168 192 224;
+  --ghost: #e8edf5;
+  --ghost-shade: #c4cede;
+  --ghost-outline: #1e2735;
+  --eye: #121824;
+  --blush: #a8c0e0;
+  --tear: #8fc7f5;
+  --text: #d2dbe9;
+  --muted: #8a99b0;
+}
