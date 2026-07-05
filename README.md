@@ -56,7 +56,10 @@ reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v Poltergeist /
   format* into the settings *calendar* tab and upcoming events surface as the same
   gentle nudges, with an adjustable lead time. An optional floating calendar window
   shows a month grid (dots on days with events) over an agenda list. **Read-only,
-  no OAuth** — it only reads the ICS feed and never writes anything back.
+  no OAuth** — it only reads the ICS feed and never writes anything back. Note the
+  secret URL *is* the credential: anyone who has it can read your calendar (it's
+  stored locally in `calendar.json`, and the app only accepts `https://` URLs —
+  reset it from Google Calendar's settings if it ever leaks).
 - **Focus timer (Pomodoro)** — a *focus* tab with adjustable focus/break lengths:
   the ghost writes in a little notebook while you focus, then nudges you to take a
   break with a live countdown, looping focus → break until you stop.

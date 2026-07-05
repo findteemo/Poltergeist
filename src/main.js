@@ -99,8 +99,8 @@ const PAD = {
   o: "var(--ghost-outline)", // cover edge
   r: "var(--void)",        // spiral binding ring
   l: "var(--purple-bright)", // label panel
-  w: "#e3b23c",            // pencil wood
-  m: "#eaa0c2",            // pencil eraser (the bit we see)
+  w: "var(--pad-pencil)",  // pencil wood (token — constant across themes, like --tear)
+  m: "var(--pad-eraser)",  // pencil eraser (the bit we see)
 };
 const PAD_HEADS = [3, 4, 5, 6, 7, 7, 6, 5, 4]; // pencil column per frame (side to side)
 function buildPad(f) {
@@ -526,6 +526,7 @@ let focusLoops = Number(localStorage.getItem("focusLoops")) || 0; // 0 = endless
 let loopsDone = 0;       // focus blocks completed this session
 let focusPhase = "idle"; // "idle" | "focus" | "break"
 let focusLeft = 0;       // seconds left in the current phase
+let phaseEnd = 0;        // wall-clock ms when the current phase ends
 let focusTimer = null;   // 1s tick
 
 function emitFocusStatus() {
@@ -537,12 +538,14 @@ function emitFocusStatus() {
 function enterFocus() {
   focusPhase = "focus";
   focusLeft = focusMins * 60;
+  phaseEnd = Date.now() + focusLeft * 1000;
   setMood("writing"); // shows the focus notebook (the .writing class + startPad)
   emitFocusStatus();
 }
 function enterBreak() {
   focusPhase = "break";
   focusLeft = breakMins * 60;
+  phaseEnd = Date.now() + focusLeft * 1000;
   setMood("happy"); // drops the .writing class → notepad hides
   queue.push({ id: BREAK_ID, label: `🌙 break · ${fmt(focusLeft)}` });
   if (!currentId) showNext();
@@ -554,9 +557,11 @@ function dropBreakBubble() {
 }
 
 function tickFocus() {
-  focusLeft--;
+  // derive remaining time from the wall clock, not tick counts — WebView2
+  // throttles timers and sleep/resume would otherwise stretch a "25 min" block
+  focusLeft = Math.max(0, Math.round((phaseEnd - Date.now()) / 1000));
   if (focusPhase === "break" && currentId === BREAK_ID)
-    bubbleText.textContent = `🌙 break · ${fmt(Math.max(0, focusLeft))}`;
+    bubbleText.textContent = `🌙 break · ${fmt(focusLeft)}`;
   emitFocusStatus();
   if (focusLeft <= 0) {
     if (focusPhase === "focus") {

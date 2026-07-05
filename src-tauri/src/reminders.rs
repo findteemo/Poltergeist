@@ -37,6 +37,20 @@ pub fn is_due(r: &Reminder, now: i64) -> bool {
     }
 }
 
+/// Keep the scheduler's `last_fired` for reminders that already exist. The
+/// settings window's list is a snapshot loaded at app start; writing it back
+/// verbatim on save would rewind firing state (reminders fire early after any
+/// save). The frontend never legitimately edits `last_fired`, so the backend's
+/// value wins for matching ids; brand-new reminders keep their own.
+// ponytail: O(n²) id lookup — fine for a hand-curated reminder list.
+pub fn preserve_last_fired(current: &[Reminder], incoming: &mut [Reminder]) {
+    for r in incoming.iter_mut() {
+        if let Some(cur) = current.iter().find(|c| c.id == r.id) {
+            r.last_fired = cur.last_fired;
+        }
+    }
+}
+
 pub fn default_reminders() -> Vec<Reminder> {
     let now = now_secs();
     let items = [
@@ -94,5 +108,16 @@ mod tests {
         assert!(is_due(&one_shot(1000, true), now), "one-shot exactly now is due");
         assert!(!is_due(&one_shot(1100, true), now), "one-shot future not due");
         assert!(!is_due(&one_shot(900, false), now), "disabled one-shot never fires");
+    }
+
+    #[test]
+    fn preserve_last_fired_keeps_backend_state() {
+        let current = vec![r(500, 1800, true)]; // backend: fired at 500
+        let mut incoming = vec![r(0, 900, true), // stale snapshot of the same id
+            Reminder { id: "new".into(), ..r(999, 60, true) }]; // brand-new reminder
+        preserve_last_fired(&current, &mut incoming);
+        assert_eq!(incoming[0].last_fired, 500, "matching id keeps backend last_fired");
+        assert_eq!(incoming[0].interval_secs, 900, "edited interval survives");
+        assert_eq!(incoming[1].last_fired, 999, "new reminder keeps its own");
     }
 }

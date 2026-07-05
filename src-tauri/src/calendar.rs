@@ -55,7 +55,7 @@ pub fn load_config(path: &Path) -> CalConfig {
 
 pub fn save_config(path: &Path, cfg: &CalConfig) {
     if let Ok(s) = serde_json::to_string_pretty(cfg) {
-        let _ = std::fs::write(path, s);
+        crate::store::write_atomic(path, &s);
     }
 }
 
@@ -63,7 +63,13 @@ pub fn save_config(path: &Path, cfg: &CalConfig) {
 /// keeps its last good cache and surfaces the message); `Ok(events)` is the parsed
 /// list (possibly empty, e.g. an empty calendar).
 pub fn fetch(url: &str) -> Result<Vec<CalEvent>, String> {
-    match ureq::get(url).call() {
+    // https only — the secret ICS address IS the credential; never send it in
+    // plaintext. Checked here (not just in the UI) so no caller can slip past.
+    if !url.starts_with("https://") {
+        return Err("the URL must start with https:// — the secret address is a credential".into());
+    }
+    // timeout so a stalled server can't hang the sync thread forever
+    match ureq::get(url).timeout(std::time::Duration::from_secs(30)).call() {
         Ok(resp) => {
             let body = resp.into_string().map_err(|e| format!("couldn't read feed: {e}"))?;
             Ok(parse(&body, crate::reminders::now_secs() as i64))
@@ -242,6 +248,13 @@ mod tests {
         assert_eq!(events[0].end - events[0].start, 15 * 60, "15-min duration kept");
         // instances are one day apart and sorted
         assert_eq!(events[1].start - events[0].start, 86400);
+    }
+
+    #[test]
+    fn fetch_rejects_plaintext_url() {
+        // fails before any network I/O — the secret URL must never go out unencrypted
+        assert!(fetch("http://calendar.google.com/x.ics").is_err());
+        assert!(fetch("ftp://x").is_err());
     }
 
     #[test]

@@ -23,9 +23,19 @@ pub fn load(path: &Path) -> Vec<Reminder> {
     }
 }
 
+/// Write via a temp file + rename so a crash mid-write can't truncate the
+/// target (a truncated reminders.json reseeds defaults; a truncated todos.json
+/// would silently become an empty list). rename replaces on Windows too.
+pub fn write_atomic(path: &Path, s: &str) {
+    let tmp = path.with_extension("tmp");
+    if std::fs::write(&tmp, s).is_ok() {
+        let _ = std::fs::rename(&tmp, path);
+    }
+}
+
 pub fn save(path: &Path, reminders: &[Reminder]) {
     if let Ok(s) = serde_json::to_string_pretty(reminders) {
-        let _ = std::fs::write(path, s);
+        write_atomic(path, &s);
     }
 }
 
@@ -44,6 +54,11 @@ mod tests {
         let one = r#"[{"id":"a","label":"x","interval_secs":60,"enabled":true,"last_fired":0}]"#;
         std::fs::write(&p, one).unwrap();
         assert_eq!(load(&p).len(), 1, "non-empty list is kept verbatim");
+        // save → load roundtrip through the atomic write path
+        let list = load(&p);
+        save(&p, &list);
+        assert_eq!(load(&p).len(), 1, "atomic save roundtrips");
+        assert!(!p.with_extension("tmp").exists(), "temp file renamed away");
         let _ = std::fs::remove_file(&p);
     }
 }

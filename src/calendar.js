@@ -33,6 +33,7 @@ function fmtTime(ev) {
 
 function renderGrid() {
   gridEl.replaceChildren();
+  const dayBtns = []; // for the roving tabindex (arrow-key nav below)
   mlabelEl.textContent = `${MONTHS[view.getMonth()]} ${view.getFullYear()}`;
   DOW.forEach((d) => {
     const h = document.createElement("div");
@@ -72,7 +73,21 @@ function renderGrid() {
       renderAgenda();
     });
     gridEl.appendChild(cell);
+    dayBtns.push(cell);
   }
+  // roving tabindex (WAI-ARIA grid pattern): one tab stop — today when visible,
+  // else the 1st — and arrows walk days (←/→ ±1, ↑/↓ ±7, clamped to the month)
+  const home = dayBtns.find((b) => b.classList.contains("today")) || dayBtns[0];
+  dayBtns.forEach((b) => (b.tabIndex = b === home ? 0 : -1));
+  gridEl.onkeydown = (e) => {
+    const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[e.key];
+    const from = dayBtns.indexOf(e.target);
+    if (!step || from < 0) return;
+    e.preventDefault();
+    const to = Math.max(0, Math.min(dayBtns.length - 1, from + step));
+    dayBtns.forEach((b, i) => (b.tabIndex = i === to ? 0 : -1));
+    dayBtns[to].focus();
+  };
 }
 
 function renderAgenda() {

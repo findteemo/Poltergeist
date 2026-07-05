@@ -23,4 +23,9 @@ assert.strictEqual(45 * factor("min"), 2700, "45 min -> secs");
 const secs = 7200;
 assert.strictEqual(secs / factor("min"), 120, "2 hr shown as 120 min");
 
+// switching unit refuses sub-1 values (mirrors the Math.max(f, secs) clamp):
+// a 30-min reminder switched to hr becomes 1 hr, whole values pass through
+assert.strictEqual(Math.max(factor("hr"), 1800), 3600, "30 min -> hr clamps to 1 hr");
+assert.strictEqual(Math.max(factor("hr"), 5400), 5400, "90 min -> hr stays 1.5 hr");
+
 console.log("ok: min/hr conversion holds");

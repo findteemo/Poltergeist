@@ -42,9 +42,17 @@ fn load_reminders(state: State<AppState>) -> Vec<Reminder> {
 }
 
 #[tauri::command]
-fn save_reminders(state: State<AppState>, reminders: Vec<Reminder>) {
+fn save_reminders(state: State<AppState>, mut reminders: Vec<Reminder>) {
+    // clamp at the trust boundary: a 0s interval would re-fire every tick
+    for rem in reminders.iter_mut() {
+        if rem.fire_at.is_none() {
+            rem.interval_secs = rem.interval_secs.max(60);
+        }
+    }
     let ids: HashSet<String> = {
         let mut r = state.reminders.lock().unwrap();
+        // the settings snapshot may be stale — keep our firing state (see reminders.rs)
+        reminders::preserve_last_fired(&r, &mut reminders);
         *r = reminders;
         store::save(&state.path, &r);
         r.iter().map(|r| r.id.clone()).collect()
@@ -233,7 +241,7 @@ fn load_todos(state: State<AppState>) -> serde_json::Value {
 #[tauri::command]
 fn save_todos(state: State<AppState>, todos: serde_json::Value) {
     if let Ok(s) = serde_json::to_string_pretty(&todos) {
-        let _ = std::fs::write(todos_path(&state), s);
+        store::write_atomic(&todos_path(&state), &s);
     }
 }
 
@@ -242,6 +250,8 @@ fn open_settings(app: AppHandle) {
     if let Some(w) = app.get_webview_window("settings") {
         let _ = w.show();
         let _ = w.set_focus();
+        // the page's reminder list is a snapshot — tell it to refresh (settings.js)
+        let _ = w.emit("settings-shown", ());
     }
 }
 

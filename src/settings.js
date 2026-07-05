@@ -151,6 +151,7 @@ tabBtns.forEach((btn) => {
 
 const listEl = document.getElementById("list");
 let reminders = [];
+let dirty = false; // unsaved reminder edits — blocks the refresh-on-show reload
 
 function nowSecs() { return Math.floor(Date.now() / 1000); }
 
@@ -175,7 +176,8 @@ function displayFor(secs) {
 function rowHtml(r, i) {
   const row = document.createElement("div");
   row.className = "row";
-  const pg = `<button class="pg ${r.poltergeist ? "on" : ""}" data-i="${i}" title="poltergeist mode — angry flames when ignored" aria-label="Poltergeist mode — angry flames when ignored" aria-pressed="${r.poltergeist ? "true" : "false"}">🔥</button>`;
+  // glyph in a span so the off-state dim can't drag the border below 3:1 (CSS .pg span)
+  const pg = `<button class="pg ${r.poltergeist ? "on" : ""}" data-i="${i}" title="poltergeist mode — angry flames when ignored" aria-label="Poltergeist mode — angry flames when ignored" aria-pressed="${r.poltergeist ? "true" : "false"}"><span aria-hidden="true">🔥</span></button>`;
   if (r.fire_at != null) {
     row.classList.add("sched");
     row.innerHTML = `
@@ -219,22 +221,28 @@ function render() {
 }
 
 listEl.addEventListener("input", (e) => {
+  dirty = true;
   const i = +e.target.dataset.i;
   const unitOf = () => e.target.closest(".row").querySelector(".unit").value;
   if (e.target.classList.contains("lbl")) reminders[i].label = e.target.value;
   else if (e.target.classList.contains("iv")) reminders[i].interval_secs = Math.max(1, +e.target.value) * factor(unitOf());
   else if (e.target.classList.contains("unit")) {
-    // switching unit keeps the same interval, just redisplays the number
-    e.target.closest(".row").querySelector(".iv").value = reminders[i].interval_secs / factor(e.target.value);
+    // switching unit keeps the interval but refuses sub-1 values (the input's
+    // min="1"), so "30 min → hr" reads as 1 hr instead of an invalid 0.5
+    const f = factor(e.target.value);
+    reminders[i].interval_secs = Math.max(f, reminders[i].interval_secs);
+    e.target.closest(".row").querySelector(".iv").value = reminders[i].interval_secs / f;
   } else if (e.target.classList.contains("en")) reminders[i].enabled = e.target.checked;
   else if (e.target.classList.contains("at") && e.target.value) reminders[i].fire_at = localInputToEpoch(e.target.value);
 });
 
 listEl.addEventListener("click", (e) => {
   if (e.target.classList.contains("del")) {
+    dirty = true;
     reminders.splice(+e.target.dataset.i, 1);
     render();
   } else if (e.target.classList.contains("pg")) {
+    dirty = true;
     const i = +e.target.dataset.i;
     reminders[i].poltergeist = !reminders[i].poltergeist;
     e.target.classList.toggle("on", reminders[i].poltergeist);
@@ -245,6 +253,7 @@ listEl.addEventListener("click", (e) => {
 function newId() { return (crypto.randomUUID && crypto.randomUUID()) || String(Date.now()); }
 
 document.getElementById("add").addEventListener("click", () => {
+  dirty = true;
   reminders.push({
     id: newId(),
     label: "new reminder",
@@ -258,6 +267,7 @@ document.getElementById("add").addEventListener("click", () => {
 });
 
 document.getElementById("addSched").addEventListener("click", () => {
+  dirty = true;
   reminders.push({
     id: newId(),
     label: "scheduled reminder",
@@ -271,9 +281,14 @@ document.getElementById("addSched").addEventListener("click", () => {
 });
 
 document.getElementById("save").addEventListener("click", async () => {
-  await invoke("save_reminders", { reminders });
   const s = document.getElementById("saved");
-  s.textContent = "saved ✓";
+  try {
+    await invoke("save_reminders", { reminders });
+    await loadReminders(); // pick up backend normalization (interval clamp, kept firing state)
+    s.textContent = "saved ✓";
+  } catch {
+    s.textContent = "✗ couldn't save"; // e.g. a malformed number the backend refused
+  }
   setTimeout(() => (s.textContent = ""), 1600);
 });
 
@@ -354,10 +369,18 @@ syncTodoVis();
 window.__TAURI__.window.getCurrentWindow().onFocusChanged((e) => { if (e.payload) syncTodoVis(); });
 listen("todo-visibility", (e) => setTodoVis(!!e.payload));
 
-(async () => {
+async function loadReminders() {
   reminders = await invoke("load_reminders");
+  dirty = false;
   render();
-})();
+}
+loadReminders();
+// The ghost acks/removes reminders while this window sits hidden (it's never
+// destroyed, just hidden), so our list is a snapshot — refresh it every time
+// the window is (re)opened. Skipped while there are unsaved edits, and driven
+// by the Rust `settings-shown` event rather than window focus so a click into
+// a text field can't rebuild the list out from under the cursor.
+listen("settings-shown", () => { if (!dirty) loadReminders(); });
 
 // ---- calendar (Google Calendar, read-only ICS feed) ----
 // URL + lead time persist Rust-side (calendar.json) since the feed is fetched

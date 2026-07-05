@@ -29,6 +29,13 @@
   --pad-shade: #7d5cb0;
   /* lifted from #8d79b3 → clears WCAG AA (4.5:1) on --row, not just --void */
   --muted: #9a86bd;
+  /* resting border for form fields + icon buttons — theme-tuned alpha so each
+     palette clears WCAG 1.4.11 (3:1) on both --void and --panel while staying
+     as dim as it can (--purple-deep at ~1.5:1 stays shadow-ink only) */
+  --border: rgb(var(--purple-rgb) / 0.7);
+  /* pencil in the focus-notebook sprite — constant across themes, like --tear */
+  --pad-pencil: #e3b23c;
+  --pad-eraser: #eaa0c2;
   --danger: #c77;
   --danger-bright: #e89;
   --mono: "Cascadia Code", "Consolas", "SF Mono", "Menlo", monospace;
@@ -37,7 +44,8 @@
 /* Alternate themes: applied via document.documentElement.dataset.theme (see
    theme.js, shared by all four windows). Each block only overrides the palette
    colors — layout vars, --amber-rgb (focus glow), and --mono stay from :root.
-   Colors are hand-tuned but freely tweakable; --muted must clear ~4.5:1 on --row. */
+   Colors are hand-tuned but freely tweakable; --muted must clear ~4.5:1 on --row,
+   and --border must clear 3:1 on both --void and --panel (WCAG 1.4.11). */
 :root[data-theme="matcha"] {
   --void: #0d1410;
   --panel: #14201a;
@@ -58,6 +66,7 @@
   --pad-cover: #4a7d5c;
   --pad-shade: #5c8f6d;
   --muted: #8fb89c;
+  --border: rgb(var(--purple-rgb) / 0.52); /* brighter green needs less alpha for 3:1 */
 }
 :root[data-theme="sundae"] {
   --void: #160e14;
@@ -79,6 +88,7 @@
   --pad-cover: #a04b78;
   --pad-shade: #b05c89;
   --muted: #bd8aa5;
+  --border: rgb(var(--purple-rgb) / 0.6);
 }
 :root[data-theme="slate"] {
   --void: #0e1116;
@@ -100,4 +110,5 @@
   --pad-cover: #465f88;
   --pad-shade: #567099;
   --muted: #8a99b0;
+  --border: rgb(var(--purple-rgb) / 0.64);
 }

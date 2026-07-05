@@ -253,7 +253,7 @@ html, body {
 .bubble .hint {
   display: block;
   margin-top: 4px;
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 1.5px;
   text-transform: uppercase;
   color: var(--purple);

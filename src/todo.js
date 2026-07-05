@@ -1,6 +1,7 @@
 // Floating to-do list — shows tasks from shared localStorage; clicking one
-// completes (deletes) it. Source of truth is `todos`; settings edits it too,
-// so we re-render on the `todos-changed` event. No timer, no ghost effect.
+// completes (deletes) it after a short undo grace (a mis-click on an
+// always-on-top panel shouldn't silently destroy a task). Source of truth is
+// `todos`; settings edits it too, so we re-render on the `todos-changed` event.
 const { invoke } = window.__TAURI__.core;
 const { listen, emit } = window.__TAURI__.event;
 const appWindow = window.__TAURI__.window.getCurrentWindow();
@@ -8,6 +9,8 @@ const listEl = document.getElementById("list");
 const TODO_SRC = "todo"; // tag our emits so settings/us can skip the echo
 
 let todos = [];
+const GRACE_MS = 3000;
+const pending = new Map(); // id -> delete timer, while a finish can still be undone
 
 function save() {
   invoke("save_todos", { todos }); // persists to todos.json
@@ -26,16 +29,38 @@ function render() {
     return;
   }
   hintEl.style.display = "";
-  todos.forEach((t, i) => {
+  todos.forEach((t) => {
     const item = document.createElement("button");
     item.className = "item";
     item.type = "button";
-    item.textContent = t.text || "(empty task)";
-    item.setAttribute("aria-label", `Finish task: ${t.text || "(empty task)"}`);
+    const key = t.id ?? t; // pre-1.1 tasks can lack ids — object identity still keys them
+    const label = t.text || "(empty task)";
+    const setDone = (done) => {
+      item.classList.toggle("done", done);
+      item.innerHTML = "";
+      item.append(label);
+      if (done) {
+        const u = document.createElement("span");
+        u.className = "undo";
+        u.textContent = "undo ↩";
+        item.appendChild(u);
+      }
+      item.setAttribute("aria-label", done ? `Undo finishing: ${label}` : `Finish task: ${label}`);
+    };
+    setDone(pending.has(key)); // keep the struck look across re-renders mid-grace
     item.addEventListener("click", () => {
-      todos.splice(i, 1);
-      save();
-      render();
+      if (pending.has(key)) { // second click inside the grace = undo
+        clearTimeout(pending.get(key));
+        pending.delete(key);
+        setDone(false);
+        return;
+      }
+      setDone(true);
+      pending.set(key, setTimeout(() => {
+        pending.delete(key);
+        const idx = todos.findIndex((x) => (x.id ?? x) === key);
+        if (idx >= 0) { todos.splice(idx, 1); save(); render(); }
+      }, GRACE_MS));
     });
     listEl.appendChild(item);
   });

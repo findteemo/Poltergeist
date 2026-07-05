@@ -43,7 +43,7 @@ typography:
     lineHeight: 1.4
   label:
     fontFamily: "Cascadia Code, Consolas, SF Mono, Menlo, monospace"
-    fontSize: "9px"
+    fontSize: "10px"
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: "1.5px"
@@ -163,6 +163,11 @@ family of purples doing all accent work, and a single amber reserved for focus.
 - **Ectoplasm White** (#ece4fa, `--ghost`) / **Ectoplasm Shade** (#c9b8ec,
   `--ghost-shade`): the ghost sprite's body and its shaded edge; also the
   primary button's hover fill.
+- **Ledger Border** (`--border`, Séance Purple at a theme-tuned alpha): the
+  resting boundary of form fields and icon buttons. Each theme picks the lowest
+  alpha that clears WCAG 1.4.11 (3:1) on both Void and Panel, so controls stay
+  findable while the page stays dim. Deep Coven remains shadow-ink only — at
+  ~1.5:1 it may not mark a control's edge.
 
 ### Named Rules
 **The One Book Rule.** Every color in every window comes from a `tokens.css`
@@ -196,8 +201,9 @@ between dotted rules, tiny tracked-uppercase whispers for hints.
   running right.
 - **Body** (400, 12px, line-height 1.4): list rows, bubble text, inputs. The
   windows are small; density is deliberate.
-- **Label** (400–700, 9–11px, tracking 1–1.5px, UPPERCASE for hints): micro
+- **Label** (400–700, 10–11px, tracking 1–1.5px, UPPERCASE for hints): micro
   copy — "click a task to finish it", bubble hints, day-of-week headers, units.
+  10px is the floor — 9px tracked uppercase mono was at the edge of legibility.
 
 ### Named Rules
 **The One Font Rule.** Everything is the mono stack. Hierarchy is size, weight,
@@ -255,9 +261,10 @@ default, hover, and `:focus-visible` states; icon targets clear 24×24px.
 - **Press:** `:active` translates the button by its own shadow offset
   (`translate(3px, 3px)`) and collapses the shadow to zero — the button
   physically pushes into the page.
-- **Icon buttons (✕ close, ‹› nav, 🔥 toggle, delete):** 2px Deep Coven border,
+- **Icon buttons (✕ close, ‹› nav, 🔥 toggle, delete):** 2px Ledger Border,
   Void fill, Séance Purple glyph; destructive ones hover to Warning Rose.
-  Minimum 24×24px.
+  Minimum 24×24px. The flame toggle dims its glyph only when off — dimming the
+  whole button would drop the border back under 3:1.
 
 ### Tabs
 - **Style:** ledger tabs — 2px Deep Coven border with no bottom edge, Void
@@ -272,8 +279,8 @@ default, hover, and `:focus-visible` states; icon targets clear 24×24px.
   opposite corners; Haunt Panel for the framed page.
 - **Shadow Strategy:** pixel-cast large (see Elevation); page interiors use the
   inset wash.
-- **Border:** 3px Séance Purple for window frames and the page; 2px Deep Coven
-  for controls.
+- **Border:** 3px Séance Purple for window frames and the page; 2px Ledger
+  Border for controls.
 - **Ornament:** ✦ corner stars on the settings page and centered above the
   action row — the grimoire's punctuation.
 
@@ -282,15 +289,19 @@ default, hover, and `:focus-visible` states; icon targets clear 24×24px.
   transparent background, generous row padding.
 - **Hover:** a 6%-alpha purple wash; to-do items flip their ☐ glyph to ☑ and
   brighten.
+- **Finishing grace:** clicking a to-do strikes it through (☑, muted, an
+  "undo ↩" tag) for ~3s before it's deleted; a second click restores it. One
+  mis-click on an always-on-top panel must never silently destroy a task.
 - **Empty states:** teach the next action in the ghost's lowercase voice
   ("no tasks yet — summon one from the settings book"), never a blank page.
 
 ### Inputs / Fields
-- **Style:** 2px Deep Coven border, Void well, Moon Ink text, 0px radius;
+- **Style:** 2px Ledger Border, Void well, Moon Ink text, 0px radius;
   `color-scheme: dark` on native pickers. Inline text edits use a
   bottom-border-only treatment so they read as ink on the ledger line.
-- **Focus:** border recolors to Séance Purple (no outline on text fields);
-  buttons and tabs get a 2px Wisp Lavender `outline` with 2px offset.
+- **Focus:** border recolors to Séance Purple (no outline on text fields;
+  inline edits double their ink line to 2px, trading a padding px so nothing
+  shifts); buttons and tabs get a 2px Wisp Lavender `outline` with 2px offset.
 - **Placeholders:** Faded Sigil — pinned to the AA-clearing token, never the
   translucent default.
 

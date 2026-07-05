@@ -40,7 +40,7 @@
     }
     p.sub { font-size: 10px; color: var(--muted); margin-top: 7px; letter-spacing: 1px; }
     #close {
-      border: 2px solid var(--purple-deep); background: var(--void); color: var(--purple);
+      border: 2px solid var(--border); background: var(--void); color: var(--purple);
       border-radius: 0; cursor: pointer; font-size: 13px; line-height: 1; padding: 3px 6px;
       font-family: var(--mono);
     }
@@ -126,28 +126,29 @@
     .row:hover { background: rgb(var(--purple-rgb) / 0.06); }
     .row:last-child { border-bottom: none; }
     .row input[type=text] {
-      border: none; border-bottom: 1px solid rgb(var(--purple-rgb) / 0.28); /* reads as an editable field, not loose text */
+      border: none; border-bottom: 1px solid var(--border); /* reads as an editable field, not loose text */
       background: transparent; font-family: var(--mono);
       font-size: 12px; color: var(--text); padding-bottom: 2px;
       min-width: 0; /* allow the label cell to shrink instead of forcing overflow */
     }
     .row input[type=text]::placeholder { color: var(--muted); }
-    .row input[type=text]:focus { border-bottom-color: var(--purple); }
+    /* focus doubles the ink line (padding gives the px back, so no layout shift) */
+    .row input[type=text]:focus { border-bottom: 2px solid var(--purple); padding-bottom: 1px; }
     /* number + unit travel together as one control */
     .row > span { display: inline-flex; align-items: center; gap: 6px; }
     .row input[type=number] {
-      width: 48px; border: 2px solid var(--purple-deep); border-radius: 0;
+      width: 48px; border: 2px solid var(--border); border-radius: 0;
       padding: 3px 4px; font-family: var(--mono); font-size: 11px;
       color: var(--text); background: var(--void);
     }
     .row select.unit {
-      border: 2px solid var(--purple-deep); border-radius: 0;
+      border: 2px solid var(--border); border-radius: 0;
       padding: 3px 2px; font-family: var(--mono); font-size: 10px;
       color: var(--text); background: var(--void); color-scheme: dark;
       letter-spacing: 0.5px; cursor: pointer;
     }
     .row input[type=datetime-local] {
-      border: 2px solid var(--purple-deep); border-radius: 0;
+      border: 2px solid var(--border); border-radius: 0;
       padding: 3px 4px; font-family: var(--mono); font-size: 11px;
       color: var(--text); background: var(--void); color-scheme: dark;
     }
@@ -156,18 +157,21 @@
 
     /* poltergeist (flame) per-row toggle */
     .pg {
-      border: 2px solid var(--purple-deep); background: var(--void);
+      border: 2px solid var(--border); background: var(--void);
       border-radius: 0; cursor: pointer; font-size: 12px; line-height: 1; padding: 3px;
-      filter: grayscale(1) opacity(0.45); /* off = dim */
     }
-    .pg.on { filter: none; border-color: var(--purple); box-shadow: 0 0 8px rgb(var(--purple-bright-rgb) / 0.6); }
+    /* off = dim the glyph only — dimming the whole button dropped the border
+       below the 3:1 non-text minimum (WCAG 1.4.11) */
+    .pg span { filter: grayscale(1) opacity(0.45); pointer-events: none; }
+    .pg.on { border-color: var(--purple); box-shadow: 0 0 8px rgb(var(--purple-bright-rgb) / 0.6); }
+    .pg.on span { filter: none; }
     .del {
-      border: 2px solid var(--purple-deep); background: var(--void); color: var(--purple);
+      border: 2px solid var(--border); background: var(--void); color: var(--purple);
       border-radius: 0; cursor: pointer; font-size: 12px; line-height: 1; padding: 3px;
       font-family: var(--mono);
     }
     .del:hover { border-color: var(--danger); color: var(--danger-bright); }
-    .mins { font-size: 9px; color: var(--muted); letter-spacing: 0.5px; }
+    .mins { font-size: 10px; color: var(--muted); letter-spacing: 0.5px; }
 
     /* ── plain option rows (size / chime / cry / focus / calendar fields) ── */
     .sizerow {
@@ -180,13 +184,13 @@
     }
     /* dropdowns (theme) — match the pixel style of the row unit-select, right-aligned */
     .sizerow select {
-      margin-left: auto; border: 2px solid var(--purple-deep); border-radius: 0;
+      margin-left: auto; border: 2px solid var(--border); border-radius: 0;
       padding: 3px 6px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.5px;
       color: var(--text); background: var(--void); color-scheme: dark; cursor: pointer;
     }
     .sizerow select:focus { outline: none; border-color: var(--purple); }
     .opt input[type=number] {
-      width: 54px; border: 2px solid var(--purple-deep); border-radius: 0;
+      width: 54px; border: 2px solid var(--border); border-radius: 0;
       padding: 3px 4px; font-family: var(--mono); font-size: 11px;
       color: var(--text); background: var(--void);
     }
@@ -209,14 +213,14 @@
       font-size: 11px; letter-spacing: 0.5px; color: var(--muted);
     }
     .calfield input {
-      border: 2px solid var(--purple-deep); border-radius: 0; padding: 6px 7px;
+      border: 2px solid var(--border); border-radius: 0; padding: 6px 7px;
       font-family: var(--mono); font-size: 11px; color: var(--text); background: var(--void);
       letter-spacing: 0;
     }
     .calfield input::placeholder { color: var(--muted); } /* pinned to AA-clearing token, not the translucent default */
     .calfield input:focus { outline: none; border-color: var(--purple); }
     .calhint {
-      font-size: 9px; color: var(--muted); letter-spacing: 0.3px; line-height: 1.55; margin-top: 6px;
+      font-size: 10px; color: var(--muted); letter-spacing: 0.3px; line-height: 1.55; margin-top: 6px;
     }
     .calstatus { font-size: 10px; letter-spacing: 0.3px; margin-top: 8px; min-height: 13px; color: var(--purple-bright); }
     .calstatus.err { color: var(--danger-bright); }
