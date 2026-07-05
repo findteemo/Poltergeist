@@ -64,7 +64,7 @@ No Node build step — the frontend is static files in `src/`.
   vars at runtime for sprite cells, so they must stay on `:root` here. Only
   `--cell` (the overlay's pixel unit) stays window-local in `style.css`.
   **Themes:** `:root` is the default `spectral` palette; `:root[data-theme="…"]`
-  blocks (`matcha`, `slate`) override the palette vars. See `theme.js`.
+  blocks (`matcha`, `sundae`, `slate`) override the palette vars. See `theme.js`.
 - `src/theme.js` — shared theme applier `<script>`'d by all four windows (like
   `winpos.js`). Reads `localStorage.theme` → sets `<html data-theme>` (flips the
   tokens.css block); listens `theme-changed` (emitted by the settings dropdown) to
@@ -180,21 +180,39 @@ reduced-motion, still running `then`).
   `moodTimer` → `showNext`); clicking dismisses early with no celebrate. Skips (and
   just re-arms) whenever not `idle()`, so it never interrupts a real bubble/sleep/
   focus/hover.
+- **Daily greeting:** on char-window load, once per day (`lastGreetDate`), a
+  time-aware hello (`morning`/`afternoon`/`evening`/`working late?` by `getHours()`)
+  shows ~1.5s in under `GREET_ID` (`__greet__`) — **silent** celebrate, no ack,
+  auto-fades. Fires each morning via the login auto-start.
+- **Focus reward:** see Focus timer — `FOCUSDONE_ID` (`__focusdone__`) cheer.
+  `__greet__`/`__focusdone__` are no-ack/no-sulk sentinels that route through the
+  streak branch of `showNext` (celebrate + auto-fade) but stay **silent** (the chime
+  line excludes `IDLE_ID`/`GREET_ID`/`FOCUSDONE_ID`).
 - Reduced-motion: no yawn/startle/zzz-drift; doze still lands on a static dimmed
   sleeping face with a static `z z z`.
 
 ## Focus timer (Pomodoro)
 
 Frontend-only (no Rust). The settings **focus** tab has focus/break minute fields
-(persist in localStorage, defaults 25/5) and a Start/Stop button; it emits
+and a loop-count field (persist in localStorage, defaults 25/5/0; `0` = endless)
+and a Start/Stop button; it emits
 `focus-toggle` and `focus-durations` to the ghost and shows the `focus-status`
-the ghost emits back. The state machine + 1s tick live in `main.js`: loops
-`focus` (mood `writing` → focus notebook, see Ghost moods) → `break` until stopped. The break is a
+the ghost emits back (with a `· n/N` lap counter when a loop target is set). The
+state machine + 1s tick live in `main.js`: loops
+`focus` (mood `writing` → focus notebook, see Ghost moods) → `break` until stopped
+— or, with a loop target, auto-stops after the Nth focus block (ends on the
+`rewardFocus` cheer, skipping the final break). The break is a
 countdown bubble pushed into the existing queue under the `BREAK_ID` (`__break__`)
 sentinel — no ack, no sulk (like `__cal__`/`__update__`); its text reticks each
 second and clicking it skips the rest of the break. Reminders are **not**
 suppressed during focus (they show through). A running session is ephemeral —
 not restored after an app restart. `fmt()` (M:SS) has an inline `console.assert`.
+
+When a focus block completes (`tickFocus`, before `enterBreak`), `rewardFocus()`
+pushes a proud, count-aware cheer under `FOCUSDONE_ID` (`__focusdone__`) — a silent
+celebrate that auto-fades, then the break bubble follows. Completed sessions are
+counted per day in localStorage (`focusDate`/`focusCount`); the line escalates
+(`nice focus 💪` → `2 sessions 🔥` → `N done — machine 🚀`). See Personality.
 
 ## Agent notifications (Claude Code / Codex)
 

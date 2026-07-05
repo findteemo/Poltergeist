@@ -23,6 +23,10 @@
   --blush: #c4a6f5;
   --tear: #8fc7f5;
   --text: #ddd0f5;
+  /* focus-notebook cover (main.js PAD sprite) — themed so the pad recolors
+     with the palette like the ghost does; shade is the lighter depth edge */
+  --pad-cover: #6b4ba0;
+  --pad-shade: #7d5cb0;
   /* lifted from #8d79b3 → clears WCAG AA (4.5:1) on --row, not just --void */
   --muted: #9a86bd;
   --danger: #c77;
@@ -51,7 +55,30 @@
   --blush: #a8e0b8;
   --tear: #8fc7f5;
   --text: #d3ebd8;
+  --pad-cover: #4a7d5c;
+  --pad-shade: #5c8f6d;
   --muted: #8fb89c;
+}
+:root[data-theme="sundae"] {
+  --void: #160e14;
+  --panel: #241422;
+  --row: #2c1929;
+  --row-hover: #331d2f;
+  --purple: #d886b0;
+  --purple-bright: #f0aecb;
+  --purple-deep: #52243f;
+  --purple-rgb: 216 134 176;
+  --purple-bright-rgb: 240 174 203;
+  --ghost: #fae6f0;
+  --ghost-shade: #e6bcd3;
+  --ghost-outline: #3d1b30;
+  --eye: #2b1022;
+  --blush: #f0aecb;
+  --tear: #8fc7f5;
+  --text: #f0d4e2;
+  --pad-cover: #a04b78;
+  --pad-shade: #b05c89;
+  --muted: #bd8aa5;
 }
 :root[data-theme="slate"] {
   --void: #0e1116;
@@ -70,5 +97,7 @@
   --blush: #a8c0e0;
   --tear: #8fc7f5;
   --text: #d2dbe9;
+  --pad-cover: #465f88;
+  --pad-shade: #567099;
   --muted: #8a99b0;
 }

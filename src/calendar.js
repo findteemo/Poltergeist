@@ -59,7 +59,7 @@ function renderGrid() {
     cell.setAttribute("aria-pressed", picked ? "true" : "false");
     cell.setAttribute(
       "aria-label",
-      `${MONTHS[view.getMonth()]} ${day}${has.has(dayKey(d)) ? ", has events" : ""}`
+      `${MONTHS[view.getMonth()]} ${day} ${view.getFullYear()}${has.has(dayKey(d)) ? ", has events" : ""}`
     );
     if (has.has(dayKey(d))) cell.classList.add("has");
     if (sameDay(d, today)) cell.classList.add("today");

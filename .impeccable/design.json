@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-03T00:00:00Z",
+  "title": "Design System: Poltergeist",
+  "extensions": {
+    "colorMeta": {
+      "void-black":        { "role": "neutral",  "displayName": "Void Black",        "canonical": "#0e0a14", "tonalRamp": ["oklch(15% 0.02 300)", "oklch(26% 0.02 300)", "oklch(38% 0.02 300)", "oklch(49% 0.02 300)", "oklch(60% 0.02 300)", "oklch(72% 0.02 300)", "oklch(83% 0.02 300)", "oklch(95% 0.02 300)"] },
+      "haunt-panel":       { "role": "neutral",  "displayName": "Haunt Panel",       "canonical": "#1b1230", "tonalRamp": ["oklch(15% 0.05 300)", "oklch(26% 0.05 300)", "oklch(38% 0.05 300)", "oklch(49% 0.05 300)", "oklch(60% 0.05 300)", "oklch(72% 0.05 300)", "oklch(83% 0.05 300)", "oklch(95% 0.05 300)"] },
+      "haunt-row":         { "role": "neutral",  "displayName": "Haunt Row",         "canonical": "#221636", "tonalRamp": ["oklch(15% 0.05 305)", "oklch(26% 0.05 305)", "oklch(38% 0.05 305)", "oklch(49% 0.05 305)", "oklch(60% 0.05 305)", "oklch(72% 0.05 305)", "oklch(83% 0.05 305)", "oklch(95% 0.05 305)"] },
+      "haunt-row-hover":   { "role": "neutral",  "displayName": "Haunt Row Hover",   "canonical": "#241640" },
+      "seance-purple":     { "role": "primary",  "displayName": "Séance Purple",     "canonical": "#9d7bd8", "tonalRamp": ["oklch(15% 0.13 300)", "oklch(26% 0.13 300)", "oklch(38% 0.13 300)", "oklch(49% 0.13 300)", "oklch(60% 0.13 300)", "oklch(72% 0.13 300)", "oklch(83% 0.13 300)", "oklch(95% 0.13 300)"] },
+      "wisp-lavender":     { "role": "primary",  "displayName": "Wisp Lavender",     "canonical": "#c4a6f5", "tonalRamp": ["oklch(15% 0.11 300)", "oklch(26% 0.11 300)", "oklch(38% 0.11 300)", "oklch(49% 0.11 300)", "oklch(60% 0.11 300)", "oklch(72% 0.11 300)", "oklch(83% 0.11 300)", "oklch(95% 0.11 300)"] },
+      "deep-coven":        { "role": "primary",  "displayName": "Deep Coven",        "canonical": "#3d2459", "tonalRamp": ["oklch(15% 0.09 305)", "oklch(26% 0.09 305)", "oklch(38% 0.09 305)", "oklch(49% 0.09 305)", "oklch(60% 0.09 305)", "oklch(72% 0.09 305)", "oklch(83% 0.09 305)", "oklch(95% 0.09 305)"] },
+      "ectoplasm-white":   { "role": "neutral",  "displayName": "Ectoplasm White",   "canonical": "#ece4fa" },
+      "ectoplasm-shade":   { "role": "neutral",  "displayName": "Ectoplasm Shade",   "canonical": "#c9b8ec" },
+      "moon-ink":          { "role": "neutral",  "displayName": "Moon Ink",          "canonical": "#ddd0f5" },
+      "faded-sigil":       { "role": "neutral",  "displayName": "Faded Sigil",       "canonical": "#9a86bd" },
+      "candle-amber":      { "role": "secondary", "displayName": "Candle Amber",     "canonical": "#e3b23c", "tonalRamp": ["oklch(15% 0.13 85)", "oklch(26% 0.13 85)", "oklch(38% 0.13 85)", "oklch(49% 0.13 85)", "oklch(60% 0.13 85)", "oklch(72% 0.13 85)", "oklch(83% 0.13 85)", "oklch(95% 0.13 85)"] },
+      "warning-rose":      { "role": "tertiary", "displayName": "Warning Rose",      "canonical": "#cc7777", "tonalRamp": ["oklch(15% 0.09 20)", "oklch(26% 0.09 20)", "oklch(38% 0.09 20)", "oklch(49% 0.09 20)", "oklch(60% 0.09 20)", "oklch(72% 0.09 20)", "oklch(83% 0.09 20)", "oklch(95% 0.09 20)"] },
+      "warning-rose-bright": { "role": "tertiary", "displayName": "Warning Rose Bright", "canonical": "#ee8899" },
+      "tear-blue":         { "role": "tertiary", "displayName": "Tear Blue",         "canonical": "#8fc7f5" }
+    },
+    "typographyMeta": {
+      "display":  { "displayName": "Book Plate", "purpose": "The ✦ POLTERGEIST ✦ titlebar only — tracked uppercase with a 3px pixel text-shadow." },
+      "headline": { "displayName": "Window Title", "purpose": "Floating-window titles (to-do, calendar)." },
+      "title":    { "displayName": "Grim Section Head", "purpose": "Lowercase section words anchored by a solid-then-dotted rule." },
+      "body":     { "displayName": "Ledger Body", "purpose": "Rows, bubbles, inputs. Dense on purpose — the windows are small." },
+      "label":    { "displayName": "Whisper Label", "purpose": "Tracked-uppercase micro copy: hints, units, day-of-week headers." }
+    },
+    "shadows": [
+      { "name": "pixel-cast-sm", "value": "3px 3px 0 0 #3d2459", "purpose": "Resting buttons (add, quit) — hard, blur-zero, Deep Coven." },
+      { "name": "pixel-cast-lg", "value": "4px 4px 0 0 #3d2459, 0 0 14px rgb(157 123 216 / 0.35)", "purpose": "Panels, speech bubbles, primary button — cast for depth plus glow for presence." },
+      { "name": "page-inset", "value": "inset 0 0 0 1px rgb(157 123 216 / 0.08), inset 3px 3px 14px rgba(0,0,0,0.4)", "purpose": "The settings page interior — candle-lit, not raised." },
+      { "name": "text-plate", "value": "3px 3px 0 #3d2459, 0 0 16px rgb(157 123 216 / 0.55)", "purpose": "text-shadow for display headings only." }
+    ],
+    "motion": [
+      { "name": "ease-out-expo", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Entrances — bubble rise, tab leaf fade. Decelerates as it arrives." },
+      { "name": "ease-out-quint", "value": "cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "Drifts — the sleeping z z z float." },
+      { "name": "state-fast", "value": "0.12s–0.15s ease", "purpose": "Hover/state color and background changes on rows, tabs, buttons." },
+      { "name": "press", "value": "0.06s ease", "purpose": "Button :active push-into-page (translate + shadow collapse)." },
+      { "name": "bob", "value": "3.6s ease-in-out infinite", "purpose": "The ghost's idle float. All perpetual motion has a reduced-motion static fallback." }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The loudest control on the page — save. Bright fill, pixel cast + glow, presses down on :active.",
+      "html": "<button class=\"ds-btn-primary\">❖ save</button>",
+      "css": ".ds-btn-primary { background: var(--purple-bright, #c4a6f5); color: var(--void, #0e0a14); border: 2px solid var(--purple-bright, #c4a6f5); border-radius: 0; padding: 9px 12px; font-family: var(--mono, 'Cascadia Code', Consolas, monospace); font-size: 13px; font-weight: 700; letter-spacing: 1px; text-transform: lowercase; cursor: pointer; box-shadow: 4px 4px 0 0 var(--purple-deep, #3d2459), 0 0 16px rgb(196 166 245 / 0.4); transition: transform 0.06s ease, box-shadow 0.06s ease; } .ds-btn-primary:hover { background: var(--ghost, #ece4fa); } .ds-btn-primary:active { transform: translate(3px, 3px); box-shadow: 0 0 0 0 var(--purple-deep, #3d2459); } .ds-btn-primary:focus-visible { outline: 2px solid var(--purple-bright, #c4a6f5); outline-offset: 2px; }"
+    },
+    {
+      "name": "Add Button",
+      "kind": "button",
+      "refersTo": "button-add",
+      "description": "The quiet secondary action — summon reminder, add task. Row-toned fill, small pixel cast.",
+      "html": "<button class=\"ds-btn-add\">✎ summon reminder</button>",
+      "css": ".ds-btn-add { background: var(--row, #221636); color: var(--purple-bright, #c4a6f5); border: 2px solid var(--purple, #9d7bd8); border-radius: 0; padding: 8px 12px; width: 100%; font-family: var(--mono, 'Cascadia Code', Consolas, monospace); font-size: 12px; letter-spacing: 0.5px; text-transform: lowercase; cursor: pointer; box-shadow: 3px 3px 0 0 var(--purple-deep, #3d2459); transition: transform 0.06s ease, box-shadow 0.06s ease, background 0.15s ease; } .ds-btn-add:hover { background: var(--row-hover, #241640); } .ds-btn-add:active { transform: translate(3px, 3px); box-shadow: 0 0 0 0 var(--purple-deep, #3d2459); } .ds-btn-add:focus-visible { outline: 2px solid var(--purple-bright, #c4a6f5); outline-offset: 2px; }"
+    },
+    {
+      "name": "Icon Button (close)",
+      "kind": "button",
+      "refersTo": "button-quit",
+      "description": "24×24 minimum icon control; destructive ones hover to Warning Rose.",
+      "html": "<button class=\"ds-btn-icon\" aria-label=\"Close\">✕</button>",
+      "css": ".ds-btn-icon { min-width: 24px; min-height: 24px; border: 2px solid var(--purple-deep, #3d2459); background: var(--void, #0e0a14); color: var(--purple, #9d7bd8); border-radius: 0; cursor: pointer; font-size: 13px; line-height: 1; padding: 3px 6px; font-family: var(--mono, 'Cascadia Code', Consolas, monospace); } .ds-btn-icon:hover { border-color: var(--danger, #cc7777); color: var(--danger-bright, #ee8899); } .ds-btn-icon:focus-visible { outline: 2px solid var(--purple-bright, #c4a6f5); outline-offset: 2px; }"
+    },
+    {
+      "name": "Ledger Tabs",
+      "kind": "nav",
+      "refersTo": "tab-active",
+      "description": "Book-tab navigation: lowercase, bottomless borders, a bright indicator bar and upward glow on the active leaf.",
+      "html": "<div class=\"ds-tabbar\"><button class=\"ds-tab ds-tab-active\">reminder</button><button class=\"ds-tab\">to-do</button><button class=\"ds-tab\">calendar</button></div>",
+      "css": ".ds-tabbar { display: flex; gap: 4px; background: var(--void, #0e0a14); padding: 6px 6px 0; } .ds-tab { flex: 1; border: 2px solid var(--purple-deep, #3d2459); border-bottom: none; border-top: 3px solid transparent; background: var(--void, #0e0a14); color: var(--muted, #9a86bd); border-radius: 0; padding: 8px 12px; cursor: pointer; font-family: var(--mono, 'Cascadia Code', Consolas, monospace); font-size: 11px; letter-spacing: 0.5px; text-transform: lowercase; transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease; } .ds-tab:hover { color: var(--purple-bright, #c4a6f5); background: var(--row, #221636); } .ds-tab-active { color: var(--purple-bright, #c4a6f5); font-weight: 700; border-color: var(--purple, #9d7bd8); border-top-color: var(--purple-bright, #c4a6f5); background: var(--panel, #1b1230); box-shadow: 0 -4px 14px rgb(157 123 216 / 0.35); } .ds-tab:focus-visible { outline: 2px solid var(--purple-bright, #c4a6f5); outline-offset: 2px; }"
+    },
+    {
+      "name": "Input Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "A dark ink well: 2px Deep Coven border, focus recolors the border to Séance Purple.",
+      "html": "<label class=\"ds-field\"><span>google calendar ICS url</span><input class=\"ds-input\" type=\"url\" placeholder=\"https://calendar.google.com/...\" /></label>",
+      "css": ".ds-field { display: flex; flex-direction: column; gap: 6px; font-family: var(--mono, 'Cascadia Code', Consolas, monospace); font-size: 11px; letter-spacing: 0.5px; color: var(--muted, #9a86bd); } .ds-input { border: 2px solid var(--purple-deep, #3d2459); border-radius: 0; padding: 6px 7px; font-family: inherit; font-size: 11px; color: var(--text, #ddd0f5); background: var(--void, #0e0a14); color-scheme: dark; } .ds-input::placeholder { color: var(--muted, #9a86bd); } .ds-input:focus { outline: none; border-color: var(--purple, #9d7bd8); }"
+    },
+    {
+      "name": "Ledger Row (to-do item)",
+      "kind": "custom",
+      "description": "Boxless list entry on a ruled line; hover flips ☐ to ☑ and washes the row purple.",
+      "html": "<div class=\"ds-ledger\"><button class=\"ds-item\">water the haunted fern</button><button class=\"ds-item\">reply to the coven</button></div>",
+      "css": ".ds-ledger { background: var(--void, #0e0a14); padding: 4px; } .ds-item { display: block; width: 100%; text-align: left; font-family: var(--mono, 'Cascadia Code', Consolas, monospace); font-size: 12px; color: var(--text, #ddd0f5); background: transparent; border: none; border-bottom: 1px solid rgb(157 123 216 / 0.16); padding: 9px 6px; cursor: pointer; transition: background 0.12s ease, color 0.12s ease; } .ds-item:last-child { border-bottom: none; } .ds-item::before { content: \"☐ \"; color: var(--muted, #9a86bd); } .ds-item:hover, .ds-item:focus-visible { background: rgb(157 123 216 / 0.06); color: var(--purple-bright, #c4a6f5); } .ds-item:hover::before, .ds-item:focus-visible::before { content: \"☑ \"; color: var(--purple, #9d7bd8); } .ds-item:focus-visible { outline: 2px solid var(--purple-bright, #c4a6f5); outline-offset: -2px; }"
+    },
+    {
+      "name": "Speech Bubble",
+      "kind": "custom",
+      "refersTo": "bubble",
+      "description": "The ghost's voice — signature component. Chunky 3px frame, stair-stepped pixel tail, tracked-uppercase hint.",
+      "html": "<div class=\"ds-bubble\">time to hydrate 💧<span class=\"ds-bubble-hint\">click to dismiss</span></div>",
+      "css": ".ds-bubble { position: relative; max-width: 200px; background: var(--panel, #1b1230); color: var(--text, #ddd0f5); border: 3px solid var(--purple, #9d7bd8); border-radius: 0; padding: 9px 13px 8px; font-family: var(--mono, 'Cascadia Code', Consolas, monospace); font-size: 12px; line-height: 1.4; text-align: center; box-shadow: 4px 4px 0 0 var(--purple-deep, #3d2459), 0 0 14px rgb(157 123 216 / 0.35); cursor: pointer; margin-bottom: 14px; } .ds-bubble:hover { background: var(--row-hover, #241640); border-color: var(--purple-bright, #c4a6f5); } .ds-bubble::after { content: \"\"; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); width: 22px; height: 12px; background: var(--purple, #9d7bd8); clip-path: polygon(0 0, 100% 0, 100% 33.3%, 81.8% 33.3%, 81.8% 66.7%, 63.6% 66.7%, 63.6% 100%, 36.4% 100%, 36.4% 66.7%, 18.2% 66.7%, 18.2% 33.3%, 0 33.3%); } .ds-bubble-hint { display: block; margin-top: 4px; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--purple, #9d7bd8); }"
+    },
+    {
+      "name": "Grim Section Head",
+      "kind": "custom",
+      "description": "Lowercase section word anchored by a short solid rule, trailed by a dotted one.",
+      "html": "<h2 class=\"ds-grim\">reminders</h2>",
+      "css": ".ds-grim { display: flex; align-items: center; gap: 12px; color: var(--purple-bright, #c4a6f5); font-family: var(--mono, 'Cascadia Code', Consolas, monospace); font-size: 14px; font-weight: 700; letter-spacing: 2px; text-transform: lowercase; text-shadow: 0 0 10px rgb(157 123 216 / 0.4); } .ds-grim::before { content: \"\"; width: 14px; flex: none; border-top: 3px solid var(--purple, #9d7bd8); } .ds-grim::after { content: \"\"; flex: 1; border-top: 2px dotted var(--purple-deep, #3d2459); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Ghost's Grimoire",
+    "overview": "Poltergeist is a candle-lit spellbook kept by a friendly ghost. Every window — the ghost overlay, the settings book, the to-do leaf, the calendar page — is a page from the same grimoire: near-black violet paper, purple candlelight pooling in the corners, ledger-ruled entries written in a single monospace hand, and tiny ✦ star ornaments where a scribe would rest their pen. The interface lives at the corner of the user's attention while they work in another app, so the resting state is quiet, dim, and warm; intensity (flames, anger, bright fills) is earned and rare, so it lands when it appears.\n\nThis system explicitly rejects the corporate productivity dashboard (boxy, sterile, soulless), aggressive notification UX (red badges, count-up guilt, modal interrupts), and the generic flat-SaaS look (rounded cards, soft blue gradients, the interchangeable AI-startup aesthetic). Its identity is pixel and spectral: hard edges, zero border-radius, chunky offset shadows, and glows that breathe instead of shout. Charming, not cutesy; present, not pushy.",
+    "keyCharacteristics": [
+      "Chunky pixel construction: 2–3px solid borders, border-radius: 0, hard offset shadows.",
+      "One monospace family carries everything; hierarchy comes from size, weight, tracking, and case.",
+      "Spectral purple on near-black; glow is atmosphere, hard shadow is depth.",
+      "Lowercase voice (\"summon reminder\", \"the ghost's little book of nudges\").",
+      "Reduced motion is first-class — every perpetual animation has a static fallback.",
+      "Three palettes (spectral, matcha, slate), one grammar: themes swap tokens.css variables only."
+    ],
+    "rules": [
+      { "name": "The One Book Rule", "body": "Every color in every window comes from a tokens.css custom property. All four windows <link> that file; a color that is not a token does not exist. Themes (matcha, slate) override palette variables only — never layout, never --amber-rgb, never --mono.", "section": "colors" },
+      { "name": "The Earned Flame Rule", "body": "Intensity is rationed. Amber appears only in focus mode; Warning Rose only under a destructive cursor; flames only in poltergeist anger. The resting screen is purple-on-black, calm, dim. If everything glows, nothing haunts.", "section": "colors" },
+      { "name": "The One Font Rule", "body": "Everything is the mono stack. Hierarchy is size, weight, tracking, and case — never a second family, never an italic flourish.", "section": "typography" },
+      { "name": "The Lowercase Voice Rule", "body": "UI copy speaks lowercase and softly (\"summon reminder\", \"nudge before\", \"cry after\"). Uppercase exists only as tracked structure — title plates and micro-labels — never as shouting.", "section": "typography" },
+      { "name": "The Pixel-Cast Rule", "body": "Depth is a hard offset shadow, always in Deep Coven, always blur-zero. A soft blurred drop-shadow under a panel is a foreign object in this system.", "section": "elevation" },
+      { "name": "The Cheap Glow Rule", "body": "Never animate box-shadow, filter, or text-shadow values — the GPU is disabled and every frame repaints. Breathing effects animate the opacity of a dedicated glow layer. If a glow needs to pulse, it needs its own layer.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do take every color from tokens.css variables — all four windows share the file, and themes override it wholesale (The One Book Rule).",
+      "Do keep border-radius: 0 on all UI chrome. The only circles are the calendar's 5px event dot and the flame tongues.",
+      "Do use hard offset shadows in Deep Coven for depth, and opacity-animated glow layers for breathing (The Pixel-Cast + Cheap Glow Rules).",
+      "Do write UI copy in the lowercase ghost voice; reserve uppercase for tracked title plates and micro-labels.",
+      "Do ship a full prefers-reduced-motion alternative for every animation — the ghost is perpetually on screen, so this is first-class, not optional.",
+      "Do keep Faded Sigil (and any new muted tone) at ≥4.5:1 on Haunt Row, keep icon targets ≥24×24, and give every control a visible :focus-visible.",
+      "Do animate the pixel sprite by translate only — scale and rotate expose seams between grid cells."
+    ],
+    "donts": [
+      "Don't look like corporate or clinical productivity tools — Outlook reminders, Jira, Asana: \"boxy, sterile, soulless.\" No dashboards, no chrome.",
+      "Don't use nagging or aggressive notification UX: no red badges, no count-up guilt, no modal interrupts, nothing that steals focus or pressures the user. Nudges stay dismissible and never grab the keyboard.",
+      "Don't drift toward generic flat SaaS: no rounded cards, no soft blue gradients, no interchangeable AI-startup look. The pixel/spectral identity is the whole point of not being this.",
+      "Don't be saccharine. Cuteness is welcome; sugar is not. The ghost is a companion with moods, not a mascot with a marketing smile.",
+      "Don't animate box-shadow, filter, or text-shadow values, and don't add perpetual animations without a reduced-motion fallback.",
+      "Don't use amber outside focus mode or Warning Rose outside destructive hovers — intensity spent everywhere is intensity lost (The Earned Flame Rule).",
+      "Don't introduce a second font family, blurred elevation shadows, or border-radius \"just for one component.\" One off-grammar element reads as a foreign object in a 240px window."
+    ]
+  }
+}

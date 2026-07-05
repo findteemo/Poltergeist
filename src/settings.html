@@ -34,13 +34,9 @@
     h1 {
       font-size: 26px; font-weight: 700; letter-spacing: 4px; line-height: 1;
       text-transform: uppercase; color: var(--purple-bright);
-      /* chunky pixel drop-shadow (matches the box-shadow language) + spectral glow */
+      /* chunky pixel drop-shadow (matches the box-shadow language) + spectral glow.
+         static on purpose: animating text-shadow repaints every frame (GPU is off) */
       text-shadow: 3px 3px 0 var(--purple-deep), 0 0 16px rgb(var(--purple-rgb) / 0.55);
-      animation: titleglow 4.5s ease-in-out infinite;
-    }
-    @keyframes titleglow {
-      0%, 100% { text-shadow: 3px 3px 0 var(--purple-deep), 0 0 12px rgb(var(--purple-rgb) / 0.42); }
-      50%      { text-shadow: 3px 3px 0 var(--purple-deep), 0 0 22px rgb(var(--purple-bright-rgb) / 0.78); }
     }
     p.sub { font-size: 10px; color: var(--muted); margin-top: 7px; letter-spacing: 1px; }
     #close {
@@ -253,6 +249,9 @@
     .saved { font-size: 10px; color: var(--purple-bright); letter-spacing: 0.5px; }
     button.add span, button.primary span { opacity: 0.85; }
 
+    /* icon buttons clear the WCAG 2.5.8 24×24 target minimum */
+    .pg, .del, #close { min-width: 24px; min-height: 24px; }
+
     /* visible keyboard focus — text inputs already show focus via border-color */
     button:focus-visible, .tabbtn:focus-visible, .pg:focus-visible, .del:focus-visible, #close:focus-visible {
       outline: 2px solid var(--purple-bright); outline-offset: 2px;
@@ -339,9 +338,14 @@
         <input type="number" id="breakMins" min="1" max="60" step="1" />
         <span class="mins">min</span>
       </div>
+      <div class="sizerow opt">
+        <label for="focusLoops">loops</label>
+        <input type="number" id="focusLoops" min="0" max="20" step="1" />
+        <span class="mins">0 = endless</span>
+      </div>
       <button class="add" id="focusToggle">▶ start focus</button>
       <p class="calstatus" id="focusStatus" role="status" aria-live="polite">idle</p>
-      <p class="calhint">The ghost writes while you focus, then nudges you to break with a countdown. Loops until you stop.</p>
+      <p class="calhint">The ghost writes while you focus, then nudges you to break with a countdown. Loops until you stop, or until the set number of loops is done.</p>
     </section>
 
     <!-- SETTINGS -->
@@ -356,6 +360,7 @@
         <select id="theme">
           <option value="spectral">spectral</option>
           <option value="matcha">matcha</option>
+          <option value="sundae">sundae</option>
           <option value="slate">slate</option>
         </select>
       </div>
@@ -368,7 +373,7 @@
         <input type="checkbox" id="chatter" />
       </div>
       <div class="sizerow">
-        <label>streak</label>
+        <span>streak</span>
         <span id="streak" class="mins"></span>
       </div>
       <div class="sizerow">

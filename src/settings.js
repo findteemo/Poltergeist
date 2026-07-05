@@ -81,20 +81,25 @@ nagEl.addEventListener("input", () => {
 // The ghost runs the clock and emits `focus-status` back for the label.
 const focusMinsEl = document.getElementById("focusMins");
 const breakMinsEl = document.getElementById("breakMins");
+const focusLoopsEl = document.getElementById("focusLoops");
 const focusToggleEl = document.getElementById("focusToggle");
 const focusStatusEl = document.getElementById("focusStatus");
 focusMinsEl.value = localStorage.getItem("focusMins") || "25";
 breakMinsEl.value = localStorage.getItem("breakMins") || "5";
+focusLoopsEl.value = localStorage.getItem("focusLoops") || "0";
 
 function saveFocusDurations() {
   const f = Math.min(120, Math.max(1, Number(focusMinsEl.value) || 25));
   const b = Math.min(60, Math.max(1, Number(breakMinsEl.value) || 5));
+  const l = Math.min(20, Math.max(0, Number(focusLoopsEl.value) || 0)); // 0 = endless
   localStorage.setItem("focusMins", f);
   localStorage.setItem("breakMins", b);
-  emit("focus-durations", { focus: f, break: b });
+  localStorage.setItem("focusLoops", l);
+  emit("focus-durations", { focus: f, break: b, loops: l });
 }
 focusMinsEl.addEventListener("input", saveFocusDurations);
 breakMinsEl.addEventListener("input", saveFocusDurations);
+focusLoopsEl.addEventListener("input", saveFocusDurations);
 
 let focusRunning = false;
 focusToggleEl.addEventListener("click", () => {
@@ -125,10 +130,12 @@ function selectTab(btn) {
     const on = b === btn;
     b.classList.toggle("active", on);
     b.setAttribute("aria-selected", on ? "true" : "false");
+    b.tabIndex = on ? 0 : -1; // roving tabindex (WAI-ARIA tabs pattern)
   });
   document.querySelectorAll(".tab").forEach((t) =>
     t.classList.toggle("active", t.id === "tab-" + btn.dataset.tab));
 }
+selectTab(tabBtns.find((b) => b.classList.contains("active"))); // set initial tabindexes
 tabBtns.forEach((btn) => {
   btn.addEventListener("click", () => selectTab(btn));
   // ←/→ move between tabs (WAI-ARIA tablist pattern)

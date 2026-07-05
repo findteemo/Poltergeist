@@ -74,19 +74,41 @@ html, body {
   display: grid;
   grid-template-columns: repeat(16, var(--cell));
   grid-template-rows: repeat(16, var(--cell));
-  animation: bob 3.6s ease-in-out infinite, aura 2.8s ease-in-out infinite;
+  animation: bob 3.6s ease-in-out infinite;
+  /* static: the breathing comes from the #ghostwrap::before glow layer below —
+     animating filter re-rasterizes the shadow every frame, and GPU is disabled */
+  filter: drop-shadow(0 0 5px rgb(var(--purple-rgb) / 0.45)) drop-shadow(0 5px 5px rgba(0, 0, 0, 0.55));
   cursor: grab;
 }
 .char:active { cursor: grabbing; }
 .char .px { pointer-events: none; image-rendering: pixelated; }
+
+/* breathing aura: a soft glow layer pulsing opacity (compositor-cheap) instead of
+   animating drop-shadow. Hidden for sad/angry/sleeping — those moods dropped the
+   aura before (they own their filter); writing recolors it amber (focus glow). */
+#ghostwrap::before {
+  content: "";
+  position: absolute;
+  inset: 5% 0 12%;
+  z-index: -2; /* behind the flames at -1 */
+  background: radial-gradient(closest-side, rgb(var(--purple-bright-rgb) / 0.4), transparent);
+  animation: aura 2.8s ease-in-out infinite;
+  pointer-events: none;
+}
+#ghostwrap.sleeping::before,
+#ghostwrap:has(.char.sad)::before,
+#ghostwrap:has(.char.angry)::before { display: none; }
+#ghostwrap.writing::before {
+  background: radial-gradient(closest-side, rgb(var(--amber-rgb) / 0.4), transparent);
+}
 
 @keyframes bob {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-5px); }
 }
 @keyframes aura {
-  0%, 100% { filter: drop-shadow(0 0 5px rgb(var(--purple-rgb) / 0.45)) drop-shadow(0 5px 5px rgba(0, 0, 0, 0.55)); }
-  50% { filter: drop-shadow(0 0 11px rgb(var(--purple-bright-rgb) / 0.85)) drop-shadow(0 5px 6px rgba(0, 0, 0, 0.55)); }
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
 }
 
 /* celebrate: a happy hop on dismiss (overrides bob+aura while it runs) */
@@ -162,13 +184,10 @@ html, body {
 }
 #ghostwrap.writing #pad { display: grid; }
 #pad .px { pointer-events: none; image-rendering: pixelated; }
-/* a soft focus glow on the ghost itself, so the whole mode reads as "focusing" */
+/* a soft focus glow on the ghost itself, so the whole mode reads as "focusing"
+   (the breathing amber comes from the recolored #ghostwrap::before layer above) */
 #ghostwrap.writing #char {
-  animation: bob 3.6s ease-in-out infinite, focusaura 2.6s ease-in-out infinite;
-}
-@keyframes focusaura {
-  0%, 100% { filter: drop-shadow(0 0 6px rgb(var(--amber-rgb) / 0.5)) drop-shadow(0 5px 5px rgba(0, 0, 0, 0.55)); }
-  50%      { filter: drop-shadow(0 0 12px rgb(var(--amber-rgb) / 0.85)) drop-shadow(0 5px 6px rgba(0, 0, 0, 0.55)); }
+  filter: drop-shadow(0 0 6px rgb(var(--amber-rgb) / 0.5)) drop-shadow(0 5px 5px rgba(0, 0, 0, 0.55));
 }
 
 /* ---- speech bubble: chunky pixel window ---- */
@@ -216,10 +235,20 @@ html, body {
   transform: translateY(0);
   pointer-events: auto;
   cursor: pointer;
-  animation: flicker 3s ease-in-out infinite;
 }
-/* the bubble is the click target — make hover legible (border lifts; flicker owns
-   the shadow while shown, so hover can't use it) */
+/* flicker: a glow layer pulsing opacity instead of animating box-shadow values —
+   shadow animation repaints every frame, and GPU is disabled (see CLAUDE.md) */
+.bubble::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  box-shadow: 0 0 22px rgb(var(--purple-bright-rgb) / 0.6);
+  opacity: 0;
+  pointer-events: none;
+}
+.bubble.show::before { animation: flicker 3s ease-in-out infinite; }
+/* the bubble is the click target — make hover legible (border lifts) */
 .bubble:hover { background: var(--row-hover); border-color: var(--purple-bright); }
 .bubble .hint {
   display: block;
@@ -233,8 +262,8 @@ html, body {
 #bubble .agentlogo[hidden] { display: none; }
 
 @keyframes flicker {
-  0%, 100% { box-shadow: 4px 4px 0 0 var(--purple-deep), 0 0 14px rgb(var(--purple-rgb) / 0.35); }
-  50% { box-shadow: 4px 4px 0 0 var(--purple-deep), 0 0 22px rgb(var(--purple-bright-rgb) / 0.6); }
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
 }
 
 /* accessibility: the ghost is always on screen, so honor reduced-motion by
@@ -248,6 +277,9 @@ html, body {
   .char.sad { animation: none; } /* keeps its own dimmed filter */
   .char.sleeping { animation: none; } /* keeps its own dimmed filter */
   #flames span { animation: none; }
+  /* the breathing glow layers hold still (the static char filters carry the glow) */
+  #ghostwrap::before { display: none; }
+  .bubble::before { animation: none; }
   /* hold the zzz steady as a static "z z z" so sleep still reads without motion */
   #zzz span { animation: none; opacity: 0.9; transform: none; }
   .bubble, .bubble.show { transition: none; animation: none; }

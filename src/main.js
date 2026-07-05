@@ -94,8 +94,8 @@ function setMood(m) {
 // pencil top pokes above the spiral binding and walks side to side as it writes.
 const PW = 10, PH = 9;
 const PAD = {
-  c: "#6b4ba0",            // cover
-  s: "#7d5cb0",            // cover shade (depth on the right/bottom)
+  c: "var(--pad-cover)",   // cover (themed in tokens.css, like the ghost cells)
+  s: "var(--pad-shade)",   // cover shade (depth on the right/bottom)
   o: "var(--ghost-outline)", // cover edge
   r: "var(--void)",        // spiral binding ring
   l: "var(--purple-bright)", // label panel
@@ -121,16 +121,24 @@ function buildPad(f) {
   put(px, 0, "m"); put(px, 1, "w"); put(px, 2, "w");
   return g;
 }
+// build a grid's cells once, then recolor in place — rebuilding the DOM every
+// frame (pad ticks at 220ms) churned hundreds of nodes/sec for 3 changed cells
+function ensureCells(el, n) {
+  while (el.childElementCount < n) {
+    const cell = document.createElement("div");
+    cell.className = "px";
+    el.appendChild(cell);
+  }
+}
+function paintGrid(el, g, w, h, palette) {
+  ensureCells(el, w * h);
+  const cells = el.children;
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++)
+      cells[y * w + x].style.background = g[y][x] === "." ? "" : palette[g[y][x]];
+}
 function renderPad(f) {
-  const g = buildPad(f);
-  padEl.replaceChildren();
-  for (let y = 0; y < PH; y++)
-    for (let x = 0; x < PW; x++) {
-      const cell = document.createElement("div");
-      cell.className = "px";
-      if (g[y][x] !== ".") cell.style.background = PAD[g[y][x]];
-      padEl.appendChild(cell);
-    }
+  paintGrid(padEl, buildPad(f), PW, PH, PAD);
 }
 let padFrame = 0, padTimer = null;
 function stopPad() { clearInterval(padTimer); padTimer = null; padFrame = 0; }
@@ -159,15 +167,7 @@ let gaze = 0;        // -1 left · 0 center · 1 right — pupil glance while ho
 let transient = null; // brief one-off face ("yawn" | "surprised" | "scrunch"), outside `mood`
 function render(blink) {
   const face = transient || (peeking && mood === "normal" ? "curious" : mood);
-  const g = buildSprite(blink, face, gaze);
-  charEl.replaceChildren();
-  for (let y = 0; y < H; y++)
-    for (let x = 0; x < W; x++) {
-      const cell = document.createElement("div");
-      cell.className = "px";
-      if (g[y][x] !== ".") cell.style.background = COLOR[g[y][x]];
-      charEl.appendChild(cell);
-    }
+  paintGrid(charEl, buildSprite(blink, face, gaze), W, H, COLOR);
 }
 
 render(false);
@@ -328,7 +328,7 @@ console.assert(AGENT_LOGO.claude && AGENT_LOGO.codex, "agent logos mapped");
 const hintFor = (id) =>
   id === UPDATE_ID ? "click to update" :
   id === BREAK_ID ? "click to skip" :
-  id === IDLE_ID || id === STREAK_ID ? "" : // ambient / cheer — no call to action
+  id === IDLE_ID || id === STREAK_ID || id === GREET_ID || id === FOCUSDONE_ID ? "" : // ambient / cheer — no call to action
   "click to dismiss"; // reminders + calendar nudges
 
 // One bubble, but several reminders can be due at once. Queue them so each is
@@ -342,6 +342,8 @@ const UPDATE_ID = "__update__"; // sentinel: this bubble installs an update, not
 const BREAK_ID = "__break__";   // sentinel: a Pomodoro break countdown (no ack, no sulk)
 const IDLE_ID = "__idle__";     // sentinel: an ambient idle mutter (no ack, no sulk, no chime, auto-fades)
 const STREAK_ID = "__streak__"; // sentinel: a day-streak milestone cheer (no ack, no sulk, chimes + celebrates, auto-fades)
+const GREET_ID = "__greet__";       // sentinel: a once-a-day time-aware hello (silent celebrate, auto-fades)
+const FOCUSDONE_ID = "__focusdone__"; // sentinel: a proud cheer when a focus block completes (silent celebrate, auto-fades)
 
 function showNext() {
   clearTimeout(moodTimer);
@@ -366,13 +368,14 @@ function showNext() {
   }
   bubble.classList.add("show");
   scheduleReport(); // bubble now interactive — include it
-  if (next.id !== IDLE_ID) chime(); // idle mutters are silent
+  // idle mutters, greetings, and focus cheers are silent
+  if (next.id !== IDLE_ID && next.id !== GREET_ID && next.id !== FOCUSDONE_ID) chime();
   // ignored too long → ghost gets sad, or angry+flames for poltergeist reminders
-  // (update + calendar + agent + idle bubbles don't sulk — they just react on show)
+  // (update + calendar + agent + idle/greet/focus bubbles don't sulk — they just react on show)
   if (next.id === IDLE_ID) {
     moodTimer = setTimeout(showNext, 5000); // ambient — fades on its own after ~5s
-  } else if (next.id === STREAK_ID) {
-    celebrate(); // milestone cheer: happy bounce, then fades on its own
+  } else if (next.id === STREAK_ID || next.id === GREET_ID || next.id === FOCUSDONE_ID) {
+    celebrate(); // cheer/greeting: happy bounce, then fades on its own (streak chimes; greet/focus are silent)
     moodTimer = setTimeout(showNext, 5000);
   } else if (next.id.startsWith("__agent__")) {
     if (next.kind === "needs-action") setMood("angry"); // lights #flames (see setMood)
@@ -431,6 +434,30 @@ function bumpStreak() {
 }
 console.assert(STREAK_MILESTONES.includes(7) && !STREAK_MILESTONES.includes(5), "streak milestone lookup");
 
+// Daily greeting: a once-per-day, time-aware hello the first time the ghost loads
+// today (fires on login auto-start each morning). Silent celebrate, auto-fades.
+(function greetOncePerDay() {
+  const today = localDay(new Date());
+  if (localStorage.getItem("lastGreetDate") === today) return;
+  localStorage.setItem("lastGreetDate", today);
+  const h = new Date().getHours();
+  const line = h < 12 ? "morning ☀️" : h < 17 ? "afternoon ☀️" : h < 21 ? "evening 🌙" : "working late? 🌙";
+  console.assert(["morning ☀️", "afternoon ☀️", "evening 🌙", "working late? 🌙"].includes(line), "greeting maps to a known line");
+  setTimeout(() => { queue.push({ id: GREET_ID, label: line }); if (!currentId) showNext(); }, 1500);
+})();
+
+// Focus reward: a proud, count-aware cheer each time a focus block completes.
+// Sessions counted per day in localStorage. Silent celebrate, auto-fades.
+function rewardFocus() {
+  const today = localDay(new Date());
+  const n = localStorage.getItem("focusDate") === today ? Number(localStorage.getItem("focusCount") || 0) + 1 : 1;
+  localStorage.setItem("focusDate", today);
+  localStorage.setItem("focusCount", n);
+  const line = n === 1 ? "nice focus 💪" : n === 2 ? "2 sessions 🔥" : `${n} done — machine 🚀`;
+  queue.push({ id: FOCUSDONE_ID, label: line });
+  if (!currentId) showNext();
+}
+
 bubble.addEventListener("click", async () => {
   if (!currentId) return;
   clearTimeout(moodTimer);
@@ -445,8 +472,8 @@ bubble.addEventListener("click", async () => {
     }
     return;
   }
-  // idle mutter / streak cheer — no backing reminder, just dismiss early.
-  if (currentId === IDLE_ID || currentId === STREAK_ID) {
+  // idle mutter / streak cheer / greeting / focus cheer — no backing reminder, just dismiss early.
+  if (currentId === IDLE_ID || currentId === STREAK_ID || currentId === GREET_ID || currentId === FOCUSDONE_ID) {
     showNext();
     return;
   }
@@ -495,13 +522,16 @@ console.assert(fmt(0) === "0:00" && fmt(65) === "1:05" && fmt(605) === "10:05", 
 
 let focusMins = Number(localStorage.getItem("focusMins")) || 25;
 let breakMins = Number(localStorage.getItem("breakMins")) || 5;
+let focusLoops = Number(localStorage.getItem("focusLoops")) || 0; // 0 = endless
+let loopsDone = 0;       // focus blocks completed this session
 let focusPhase = "idle"; // "idle" | "focus" | "break"
 let focusLeft = 0;       // seconds left in the current phase
 let focusTimer = null;   // 1s tick
 
 function emitFocusStatus() {
-  emit("focus-status", focusPhase === "focus" ? `focusing · ${fmt(focusLeft)}`
-    : focusPhase === "break" ? `break · ${fmt(focusLeft)}` : "idle");
+  const lap = focusLoops ? ` · ${Math.min(loopsDone + 1, focusLoops)}/${focusLoops}` : "";
+  emit("focus-status", focusPhase === "focus" ? `focusing · ${fmt(focusLeft)}${lap}`
+    : focusPhase === "break" ? `break · ${fmt(focusLeft)}${lap}` : "idle");
 }
 
 function enterFocus() {
@@ -529,13 +559,17 @@ function tickFocus() {
     bubbleText.textContent = `🌙 break · ${fmt(Math.max(0, focusLeft))}`;
   emitFocusStatus();
   if (focusLeft <= 0) {
-    if (focusPhase === "focus") enterBreak();
-    else { dropBreakBubble(); enterFocus(); }
+    if (focusPhase === "focus") {
+      loopsDone++;
+      if (focusLoops && loopsDone >= focusLoops) { stopFocus(); rewardFocus(); } // loop target hit — end on the cheer, skip the break
+      else { rewardFocus(); enterBreak(); } // proud cheer, then the break
+    } else { dropBreakBubble(); enterFocus(); }
   }
 }
 
 function startFocus() {
   clearInterval(focusTimer);
+  loopsDone = 0;
   enterFocus();
   focusTimer = setInterval(tickFocus, 1000);
 }
@@ -551,4 +585,6 @@ listen("focus-toggle", (e) => (e.payload ? startFocus() : stopFocus()));
 listen("focus-durations", (e) => {
   focusMins = Math.max(1, Number(e.payload.focus) || focusMins);
   breakMins = Math.max(1, Number(e.payload.break) || breakMins);
+  const l = Number(e.payload.loops); // 0 is a valid value (endless), so no || fallback
+  if (Number.isFinite(l)) focusLoops = Math.max(0, l);
 });
