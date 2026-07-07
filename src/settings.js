@@ -39,6 +39,51 @@ function showStreak() {
 showStreak();
 listen("streak-changed", showStreak);
 
+// hat picker: emoji swatches, unlocked by best-ever streak (localStorage.bestStreak,
+// kept by main.js bumpStreak). Equip writes localStorage.ghostHat + emits hat-changed.
+// ponytail: HATS mirrors the source of truth in src/main.js (no module system).
+const HATS = [
+  { id: "bow",    streak: 3,   emoji: "🎀", label: "bow" },
+  { id: "cap",    streak: 7,   emoji: "🧢", label: "cap" },
+  { id: "crown",  streak: 14,  emoji: "👑", label: "crown" },
+  { id: "tophat", streak: 30,  emoji: "🎩", label: "top hat" },
+  { id: "witch",  streak: 60,  emoji: "🧙", label: "witch hat" },
+  { id: "halo",   streak: 100, emoji: "😇", label: "halo" },
+];
+const hatsEl = document.getElementById("hats");
+function renderHats() {
+  const best = Number(localStorage.getItem("bestStreak") || 0);
+  const equipped = localStorage.getItem("ghostHat") || "";
+  hatsEl.textContent = "";
+  const mk = (id, text, title, on, disabled) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = text; b.title = title;
+    b.setAttribute("role", "radio"); b.setAttribute("aria-checked", String(on));
+    if (disabled) b.disabled = true;
+    b.addEventListener("click", () => {
+      localStorage.setItem("ghostHat", id);
+      emit("hat-changed", id);
+      renderHats();
+    });
+    return b;
+  };
+  const none = mk("", "none", "no hat", equipped === "", false);
+  none.classList.add("none");
+  hatsEl.appendChild(none);
+  for (const h of HATS) {
+    const unlocked = best >= h.streak;
+    hatsEl.appendChild(mk(
+      unlocked ? h.id : "",                                   // locked click is a no-op via disabled
+      unlocked ? h.emoji : `🔒${h.streak}`,
+      unlocked ? h.label : `${h.label} — reach a ${h.streak}-day streak`,
+      unlocked && equipped === h.id,
+      !unlocked,
+    ));
+  }
+}
+renderHats();
+listen("streak-changed", renderHats); // a milestone may have just unlocked one
+
 // chime toggle: persisted locally, pushed live to the character window
 const chimeEl = document.getElementById("chime");
 chimeEl.checked = localStorage.getItem("chimeMuted") !== "1"; // checked = chime on

@@ -189,6 +189,16 @@
       color: var(--text); background: var(--void); color-scheme: dark; cursor: pointer;
     }
     .sizerow select:focus { outline: none; border-color: var(--purple); }
+    .hatrow { display: flex; align-items: center; gap: .5rem; padding: .35rem 0; }
+    .hats { display: flex; flex-wrap: wrap; gap: .3rem; }
+    .hats button {
+      font: inherit; font-size: 1.05rem; line-height: 1; cursor: pointer;
+      background: var(--row); color: var(--text);
+      border: 2px solid var(--border); border-radius: 6px; padding: .2rem .35rem;
+    }
+    .hats button[aria-checked="true"] { border-color: var(--purple-bright); background: var(--row-hover); }
+    .hats button:disabled { opacity: .4; cursor: not-allowed; }
+    .hats .none { font-size: .8rem; }
     .opt input[type=number] {
       width: 54px; border: 2px solid var(--border); border-radius: 0;
       padding: 3px 4px; font-family: var(--mono); font-size: 11px;
@@ -379,6 +389,10 @@
       <div class="sizerow">
         <span>streak</span>
         <span id="streak" class="mins"></span>
+      </div>
+      <div class="hatrow">
+        <span>hat</span>
+        <div id="hats" class="hats" role="radiogroup" aria-label="ghost hat"></div>
       </div>
       <div class="sizerow">
         <label for="autostart">launch at login</label>
