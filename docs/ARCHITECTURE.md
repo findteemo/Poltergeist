@@ -190,6 +190,20 @@ reduced-motion, still running `then`).
   `__greet__`/`__focusdone__` are no-ack/no-sulk sentinels that route through the
   streak branch of `showNext` (celebrate + auto-fade) but stay **silent** (the chime
   line excludes `IDLE_ID`/`GREET_ID`/`FOCUSDONE_ID`).
+- **Hats (cosmetic).** `HATS` (`main.js`) maps each day-streak milestone
+  (3/7/14/30/60/100) to a collectible hat (`bow`/`cap`/`crown`/`tophat`/`witch`/
+  `halo`). `bumpStreak` records the best streak ever in `localStorage.bestStreak`;
+  a hat is unlocked iff `bestStreak >= its milestone` (permanent — a broken streak
+  never re-locks it). Hitting a milestone appends the unlock to the `__streak__`
+  cheer. `buildHat(id)` returns sparse `[x,y,key]` overlay cells drawn into the top
+  rows (y=0..2, above the dome) in `render()`, after `buildSprite`. Palette keys
+  `H`/`h` map to `--hat`/`--hat-shade` in `tokens.css` — defined once on `:root` as
+  `var()` refs to `--purple-bright`/`--purple`, so hats recolor per theme for free.
+  **Runtime-only** — `scripts/make_icon.js` is NOT touched (icon stays bare). The
+  settings tab has an emoji-swatch picker (locked hats show `🔒<streak>`); the
+  equipped id lives in `localStorage.ghostHat` and pushes live via the
+  `hat-changed` event (same pattern as `theme-changed`). Self-check:
+  `scripts/test_hats.js`.
 - Reduced-motion: no yawn/startle/zzz-drift; doze still lands on a static dimmed
   sleeping face with a static `z z z`.
 
@@ -390,7 +404,8 @@ struct to keep in sync. The dir name is intentionally **`cozy-reminder`** (not
 the new product name) so existing users keep their data after the rename.
 
 Window positions live in each webview's `localStorage` (`winpos:<label>`), not in
-the config dir.
+the config dir. Character-window localStorage also holds `bestStreak` (highest
+streak ever, drives hat unlocks) and `ghostHat` (equipped hat id, `""` = none).
 
 ## Style
 
