@@ -493,6 +493,13 @@ function bumpStreak() {
 }
 console.assert(STREAK_MILESTONES.includes(7) && !STREAK_MILESTONES.includes(5), "streak milestone lookup");
 
+// Backfill best-ever from any existing streak so a user upgrading mid-streak
+// sees their earned hats immediately (bumpStreak only writes bestStreak on ack).
+localStorage.setItem("bestStreak", String(Math.max(
+  Number(localStorage.getItem("bestStreak") || 0),
+  Number(localStorage.getItem("streakCount") || 0),
+)));
+
 // Daily greeting: a once-per-day, time-aware hello the first time the ghost loads
 // today (fires on login auto-start each morning). Silent celebrate, auto-fades.
 (function greetOncePerDay() {
