@@ -416,7 +416,17 @@ scheduleChatter();
 // Day streak: consecutive calendar days on which you acked at least one real
 // reminder. Kept in localStorage (shared with the settings display via
 // `streak-changed`). A milestone lands a one-off cheer bubble.
-const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100];
+// Collectible hats, one per day-streak milestone. Unlocked permanently by the
+// best streak ever (see bumpStreak). Rendered by buildHat; equipped via settings.
+const HATS = [
+  { id: "bow",    streak: 3,   emoji: "🎀", label: "bow" },
+  { id: "cap",    streak: 7,   emoji: "🧢", label: "cap" },
+  { id: "crown",  streak: 14,  emoji: "👑", label: "crown" },
+  { id: "tophat", streak: 30,  emoji: "🎩", label: "top hat" },
+  { id: "witch",  streak: 60,  emoji: "🧙", label: "witch hat" },
+  { id: "halo",   streak: 100, emoji: "😇", label: "halo" },
+];
+const STREAK_MILESTONES = HATS.map((h) => h.streak);
 const localDay = (d) => { const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
 function bumpStreak() {
   const today = localDay(new Date());
@@ -425,10 +435,13 @@ function bumpStreak() {
   if (last === today) return; // already counted a reminder today
   const count = last === yest ? Number(localStorage.getItem("streakCount") || 0) + 1 : 1;
   localStorage.setItem("streakCount", count);
+  const best = Math.max(count, Number(localStorage.getItem("bestStreak") || 0));
+  localStorage.setItem("bestStreak", best);
   localStorage.setItem("streakLastDate", today);
   emit("streak-changed"); // refresh the settings display if it's open
-  if (STREAK_MILESTONES.includes(count)) {
-    queue.push({ id: STREAK_ID, label: `🔥 ${count}-day streak!` });
+  const hat = HATS.find((h) => h.streak === count);
+  if (hat) {
+    queue.push({ id: STREAK_ID, label: `🔥 ${count}-day streak! ${hat.emoji} ${hat.label} unlocked — see settings` });
     if (!currentId) showNext();
   }
 }
