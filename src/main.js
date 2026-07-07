@@ -61,7 +61,49 @@ function buildSprite(blink, mood, gaze = 0) {
 const COLOR = {
   b: "var(--ghost)", s: "var(--ghost-shade)", o: "var(--ghost-outline)",
   e: "var(--eye)", p: "var(--blush)", t: "var(--tear)",
+  H: "var(--hat)", h: "var(--hat-shade)",
 };
+
+// Hat overlay cells drawn into the top rows (y=0..2) of the ghost grid, above
+// the dome (dome crown starts at y=2, ~x5..10). Sparse [x, y, key] list; keys
+// are COLOR keys. Runtime-only — NOT mirrored in scripts/make_icon.js.
+function buildHat(id) {
+  switch (id) {
+    case "bow": return [
+      [5,0,"H"],[6,0,"H"],[9,0,"H"],[10,0,"H"],
+      [5,1,"H"],[6,1,"H"],[7,1,"p"],[8,1,"p"],[9,1,"H"],[10,1,"H"],
+    ];
+    case "cap": return [
+      [6,0,"H"],[7,0,"H"],[8,0,"H"],[9,0,"H"],
+      [5,1,"H"],[6,1,"H"],[7,1,"H"],[8,1,"H"],[9,1,"H"],[10,1,"H"],
+      [11,2,"h"],[12,2,"h"],[13,2,"h"], // brim poking right
+    ];
+    case "crown": return [
+      [5,0,"H"],[5,1,"H"], [7,0,"H"],[8,0,"H"],[7,1,"H"],[8,1,"H"], [10,0,"H"],[10,1,"H"], // three teeth
+      [5,2,"H"],[6,2,"H"],[7,2,"H"],[8,2,"H"],[9,2,"H"],[10,2,"H"],  // band
+      [6,1,"p"],[9,1,"p"], // gems
+    ];
+    case "tophat": return [
+      [6,0,"H"],[7,0,"H"],[8,0,"H"],[9,0,"H"],
+      [6,1,"H"],[7,1,"p"],[8,1,"p"],[9,1,"H"], // hatband accent
+      [4,2,"h"],[5,2,"h"],[6,2,"h"],[7,2,"h"],[8,2,"h"],[9,2,"h"],[10,2,"h"],[11,2,"h"], // brim
+    ];
+    case "witch": return [
+      [7,0,"H"],                       // pointed tip
+      [6,1,"H"],[7,1,"H"],[8,1,"H"],   // cone narrows
+      [4,2,"h"],[5,2,"h"],[6,2,"H"],[7,2,"H"],[8,2,"H"],[9,2,"H"],[10,2,"h"],[11,2,"h"], // wide brim
+    ];
+    case "halo": return [
+      [6,0,"H"],[7,0,"H"],[8,0,"H"],[9,0,"H"], // ring top
+      [5,1,"H"],[10,1,"H"],                    // ring sides (floats — gap to dome at y2)
+    ];
+    default: return [];
+  }
+}
+console.assert(buildHat("crown").length > 0 && buildHat("nope").length === 0, "buildHat known vs unknown");
+
+// equipped hat id ("" = none), remembered locally; pushed live from settings
+let equippedHat = localStorage.getItem("ghostHat") || "";
 
 const charEl = document.getElementById("char");
 const flamesEl = document.getElementById("flames");
@@ -167,7 +209,11 @@ let gaze = 0;        // -1 left · 0 center · 1 right — pupil glance while ho
 let transient = null; // brief one-off face ("yawn" | "surprised" | "scrunch"), outside `mood`
 function render(blink) {
   const face = transient || (peeking && mood === "normal" ? "curious" : mood);
-  paintGrid(charEl, buildSprite(blink, face, gaze), W, H, COLOR);
+  const g = buildSprite(blink, face, gaze);
+  if (equippedHat)
+    for (const [x, y, k] of buildHat(equippedHat))
+      if (y >= 0 && y < H && x >= 0 && x < W) g[y][x] = k;
+  paintGrid(charEl, g, W, H, COLOR);
 }
 
 render(false);
@@ -606,3 +652,4 @@ listen("focus-durations", (e) => {
   const l = Number(e.payload.loops); // 0 is a valid value (endless), so no || fallback
   if (Number.isFinite(l)) focusLoops = Math.max(0, l);
 });
+listen("hat-changed", (e) => { equippedHat = e.payload || ""; localStorage.setItem("ghostHat", equippedHat); render(false); });

@@ -22,6 +22,10 @@
   --eye: #19102b;
   --blush: #c4a6f5;
   --tear: #8fc7f5;
+  /* hat cosmetic (main.js buildHat) — var() refs to already-themed palette
+     vars, so hats recolor per theme for free without per-theme overrides */
+  --hat: var(--purple-bright);
+  --hat-shade: var(--purple);
   --text: #ddd0f5;
   /* focus-notebook cover (main.js PAD sprite) — themed so the pad recolors
      with the palette like the ghost does; shade is the lighter depth edge */
