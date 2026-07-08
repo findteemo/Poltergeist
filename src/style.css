@@ -89,7 +89,9 @@ html, body {
 #ghostwrap::before {
   content: "";
   position: absolute;
-  inset: 5% 0 12%;
+  /* bottom-anchored to the ghost body (bottom 16 rows) so it stays centered even when
+     the grid grows to 24 rows for a hat — a %-based inset would ride up over the hat */
+  left: 0; right: 0; bottom: var(--cell); height: calc(var(--cell) * 13);
   z-index: -2; /* behind the flames at -1 */
   background: radial-gradient(closest-side, rgb(var(--purple-bright-rgb) / 0.4), transparent);
   animation: aura 2.8s ease-in-out infinite;

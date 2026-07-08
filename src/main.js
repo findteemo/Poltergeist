@@ -58,47 +58,97 @@ function buildSprite(blink, mood, gaze = 0) {
   return g;
 }
 
+// ghost + hat palette keys. Ghost keys reference themed CSS vars (recolor with the
+// theme); hat keys are fixed hex (each hat keeps its own colors across themes). The
+// two key sets are disjoint (ghost 'b' body vs hat 'L' highlight), so one map serves
+// both — see render(), which composites the hat over the ghost grid.
 const COLOR = {
   b: "var(--ghost)", s: "var(--ghost-shade)", o: "var(--ghost-outline)",
   e: "var(--eye)", p: "var(--blush)", t: "var(--tear)",
-  H: "var(--hat)", h: "var(--hat-shade)",
+  K: "#3a2e47", // hat outline (off pure-black so dark hats read on the near-black void)
+  W: "#fff6e6", // shine / sparkle
+  G: "#f5c542", g: "#d99a2b", Y: "#ffe08a", // gold / shade / highlight
+  R: "#e8556d", r: "#b83350",               // red / shade
+  P: "#f7a8c8", q: "#e07aa6",               // pink / shade
+  B: "#332b47", L: "#564a75",               // top-hat black / highlight
+  V: "#8257c9", v: "#5e3a94",               // witch purple / shade
+  j: "#5fa8e0", n: "#5fd08a",               // sapphire / emerald gems
 };
 
-// Hat overlay cells drawn into the top rows (y=0..2) of the ghost grid, above
-// the dome (dome crown starts at y=2, ~x5..10). Sparse [x, y, key] list; keys
-// are COLOR keys. Runtime-only — NOT mirrored in scripts/make_icon.js.
+// Hat art: a filled silhouette + interior accents, drawn ABOVE the ghost. When a hat
+// is worn the ghost grid grows to HROWS rows (render); the ghost sits in the bottom H
+// rows and the hat rises into the space where the reminder bubble normally is. Coords
+// are in that tall canvas, where the head crown sits at row ~10. Fills only — a dark
+// outline is auto-added by withOutline. Runtime-only — NOT mirrored in make_icon.js.
+const hrow = (y, xs, c) => xs.map((x) => [x, y, c]);
 function buildHat(id) {
   switch (id) {
-    case "bow": return [
-      [5,0,"H"],[6,0,"H"],[9,0,"H"],[10,0,"H"],
-      [5,1,"H"],[6,1,"H"],[7,1,"p"],[8,1,"p"],[9,1,"H"],[10,1,"H"],
-    ];
-    case "cap": return [
-      [6,0,"H"],[7,0,"H"],[8,0,"H"],[9,0,"H"],
-      [5,1,"H"],[6,1,"H"],[7,1,"H"],[8,1,"H"],[9,1,"H"],[10,1,"H"],
-      [11,2,"h"],[12,2,"h"],[13,2,"h"], // brim poking right
-    ];
-    case "crown": return [
-      [5,0,"H"],[5,1,"H"], [7,0,"H"],[8,0,"H"],[7,1,"H"],[8,1,"H"], [10,0,"H"],[10,1,"H"], // three teeth
-      [5,2,"H"],[6,2,"H"],[7,2,"H"],[8,2,"H"],[9,2,"H"],[10,2,"H"],  // band
-      [6,1,"p"],[9,1,"p"], // gems
-    ];
-    case "tophat": return [
-      [6,0,"H"],[7,0,"H"],[8,0,"H"],[9,0,"H"],
-      [6,1,"H"],[7,1,"p"],[8,1,"p"],[9,1,"H"], // hatband accent
-      [4,2,"h"],[5,2,"h"],[6,2,"h"],[7,2,"h"],[8,2,"h"],[9,2,"h"],[10,2,"h"],[11,2,"h"], // brim
-    ];
-    case "witch": return [
-      [7,0,"H"],                       // pointed tip
-      [6,1,"H"],[7,1,"H"],[8,1,"H"],   // cone narrows
-      [4,2,"h"],[5,2,"h"],[6,2,"H"],[7,2,"H"],[8,2,"H"],[9,2,"H"],[10,2,"h"],[11,2,"h"], // wide brim
-    ];
-    case "halo": return [
-      [6,0,"H"],[7,0,"H"],[8,0,"H"],[9,0,"H"], // ring top
-      [5,1,"H"],[10,1,"H"],                    // ring sides (floats — gap to dome at y2)
-    ];
+    case "bow": return [].concat(
+      hrow(7, [4,5], "P"), hrow(7, [10,11], "P"),
+      hrow(8, [3,4,5,6], "P"), [[5,8,"W"]], hrow(8, [9,10,11,12], "q"),
+      hrow(9, [3,4,5,6], "P"), hrow(9, [9,10,11,12], "q"),
+      hrow(10,[4,5,6], "q"),   hrow(10,[9,10,11], "q"),
+      hrow(8, [7,8], "q"), hrow(9,[7,8],"r"), hrow(10,[7,8],"q"),   // knot
+      hrow(11,[6,7], "P"), hrow(11,[8,9], "q"),                     // tails
+    );
+    case "cap": return [].concat(
+      hrow(6, [7,8], "R"),                                          // button
+      hrow(7, [5,6,7,8,9,10], "R"),
+      hrow(8, [4,5,6,7,8,9,10,11], "R"), [[6,8,"W"]],
+      hrow(9, [4,5,6,7,8,9,10,11], "R"),
+      hrow(10,[4,5,6,7,8,9,10,11], "r"),
+      hrow(11,[8,9,10,11,12,13], "r"),                             // brim to the right
+    );
+    case "crown": return [].concat(
+      hrow(4, [7,8], "R"),                                         // top ruby
+      hrow(5, [4,7,8,11], "Y"),                                    // point tips (highlight)
+      hrow(6, [4,7,8,11], "G"),
+      hrow(7, [4,5,7,8,10,11], "G"),
+      hrow(8, [4,5,6,7,8,9,10,11], "G"),
+      hrow(9, [4,5,6,7,8,9,10,11], "G"), [[5,9,"R"],[8,9,"n"],[10,9,"j"]], // band + gems
+      hrow(10,[4,5,6,7,8,9,10,11], "g"),                          // band shade
+    );
+    case "tophat": return [].concat(
+      hrow(3, [6,7,8,9], "B"), [[6,3,"L"]],
+      hrow(4, [6,7,8,9], "B"), [[6,4,"W"]],                        // left-edge shine so it
+      hrow(5, [6,7,8,9], "B"), [[6,5,"W"]],                        // reads against the void
+      hrow(6, [6,7,8,9], "B"), [[6,6,"L"]],
+      hrow(7, [6,7,8,9], "B"), [[6,7,"L"]],
+      hrow(8, [5,6,7,8,9], "R"), [[9,8,"r"]],                       // band
+      hrow(9, [4,5,6,7,8,9,10,11], "B"), [[4,9,"L"],[5,9,"L"]],    // brim + top highlight
+      hrow(10,[3,4,5,6,7,8,9,10,11,12], "B"), [[3,10,"L"]],
+    );
+    case "witch": return [].concat(
+      hrow(3, [5], "V"), [[4,3,"W"]],                             // bent tip + star
+      hrow(4, [5,6], "V"),
+      hrow(5, [6,7], "V"),
+      hrow(6, [6,7,8], "V"), [[8,6,"v"]],
+      hrow(7, [6,7,8,9], "V"), [[9,7,"v"]],
+      hrow(8, [5,6,7,8,9], "V"),
+      hrow(9, [5,6,7,8,9], "v"), [[7,9,"G"]],                     // buckle band
+      hrow(10,[3,4,5,6,7,8,9,10,11,12], "V"), [[11,10,"v"],[12,10,"v"]],
+    );
+    case "halo": return [].concat(
+      hrow(4, [6,7,8,9], "Y"),                                     // brighter than the crown
+      hrow(5, [5,10], "G"),                                        // so it reads as glow, not metal
+      hrow(6, [5,10], "G"),
+      hrow(7, [6,7,8,9], "G"), [[8,7,"g"],[9,7,"g"]],
+      [[4,5,"W"],[11,6,"W"],[7,3,"W"],[8,3,"W"]],                  // glow sparkles
+    );
     default: return [];
   }
+}
+// wrap the filled cells in a dark (K) outline ring, like buildSprite does for the ghost
+function withOutline(fills) {
+  const fill = new Map();
+  for (const [x, y, c] of fills) fill.set(x + "," + y, c);
+  const out = [];
+  for (const key of fill.keys()) {
+    const [x, y] = key.split(",").map(Number);
+    for (const [dx, dy] of [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1]])
+      if (!fill.has((x + dx) + "," + (y + dy))) out.push([x + dx, y + dy, "K"]);
+  }
+  return out.concat(fills); // fills drawn on top of the outline
 }
 console.assert(buildHat("crown").length > 0 && buildHat("nope").length === 0, "buildHat known vs unknown");
 
@@ -171,6 +221,9 @@ function ensureCells(el, n) {
     cell.className = "px";
     el.appendChild(cell);
   }
+  // shrink too: the ghost grid grows to HROWS when hatted and back to H when bare,
+  // so leftover cells must go or they'd flow into stray implicit grid rows
+  while (el.childElementCount > n) el.removeChild(el.lastElementChild);
 }
 function paintGrid(el, g, w, h, palette) {
   ensureCells(el, w * h);
@@ -207,13 +260,25 @@ function celebrate() {
 let peeking = false;
 let gaze = 0;        // -1 left · 0 center · 1 right — pupil glance while hovered
 let transient = null; // brief one-off face ("yawn" | "surprised" | "scrunch"), outside `mood`
+// when a hat is worn the grid grows to HROWS rows: the ghost sits in the bottom H
+// rows (offset GYOFF) and the hat rises above it. Bare = 16 rows (no change, so the
+// empty space above stays click-through). Coords match buildHat (crown at row ~10).
+const HROWS = 24, GYOFF = 8;
 function render(blink) {
   const face = transient || (peeking && mood === "normal" ? "curious" : mood);
-  const g = buildSprite(blink, face, gaze);
-  if (equippedHat)
-    for (const [x, y, k] of buildHat(equippedHat))
-      if (y >= 0 && y < H && x >= 0 && x < W) g[y][x] = k;
-  paintGrid(charEl, g, W, H, COLOR);
+  const gs = buildSprite(blink, face, gaze);
+  const hatted = !!equippedHat;
+  const rows = hatted ? HROWS : H;
+  const off = hatted ? GYOFF : 0;
+  const g = Array.from({ length: rows }, () => Array(W).fill("."));
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++)
+      if (gs[y][x] !== ".") g[y + off][x] = gs[y][x];
+  if (hatted)
+    for (const [x, y, k] of withOutline(buildHat(equippedHat)))
+      if (y >= 0 && y < rows && x >= 0 && x < W) g[y][x] = k;
+  charEl.style.gridTemplateRows = `repeat(${rows}, var(--cell))`;
+  paintGrid(charEl, g, W, rows, COLOR);
 }
 
 render(false);

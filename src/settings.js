@@ -39,8 +39,10 @@ function showStreak() {
 showStreak();
 listen("streak-changed", showStreak);
 
-// hat picker: emoji swatches, unlocked by best-ever streak (localStorage.bestStreak,
-// kept by main.js bumpStreak). Equip writes localStorage.ghostHat + emits hat-changed.
+// hat picker: a row of emoji swatches, unlocked by best-ever streak
+// (localStorage.bestStreak, kept by main.js bumpStreak). Locked hats show 🔒,
+// disabled, tooltip names the streak needed. Click a swatch to equip → writes
+// localStorage.ghostHat + emits hat-changed. Equipped = purple ring (.on).
 // ponytail: HATS mirrors the source of truth in src/main.js (no module system).
 const HATS = [
   { id: "bow",    streak: 3,   emoji: "🎀", label: "bow" },
@@ -50,35 +52,31 @@ const HATS = [
   { id: "witch",  streak: 60,  emoji: "🧙", label: "witch hat" },
   { id: "halo",   streak: 100, emoji: "😇", label: "halo" },
 ];
-const hatsEl = document.getElementById("hats");
+const hatEl = document.getElementById("hat");
 function renderHats() {
   const best = Number(localStorage.getItem("bestStreak") || 0);
   const equipped = localStorage.getItem("ghostHat") || "";
-  hatsEl.textContent = "";
-  const mk = (id, text, title, on, disabled) => {
+  hatEl.textContent = "";
+  const add = (val, glyph, label, locked) => {
     const b = document.createElement("button");
-    b.type = "button"; b.textContent = text; b.title = title;
-    b.setAttribute("role", "radio"); b.setAttribute("aria-checked", String(on));
-    if (disabled) b.disabled = true;
-    b.addEventListener("click", () => {
-      localStorage.setItem("ghostHat", id);
-      emit("hat-changed", id);
+    b.type = "button";
+    b.className = "hatsw" + (val === equipped ? " on" : "");
+    b.textContent = locked ? "🔒" : glyph;
+    b.title = label;
+    b.setAttribute("aria-label", label);
+    b.setAttribute("aria-pressed", String(val === equipped));
+    b.disabled = locked;
+    if (!locked) b.addEventListener("click", () => {
+      localStorage.setItem("ghostHat", val);
+      emit("hat-changed", val);
       renderHats();
     });
-    return b;
+    hatEl.appendChild(b);
   };
-  const none = mk("", "none", "no hat", equipped === "", false);
-  none.classList.add("none");
-  hatsEl.appendChild(none);
+  add("", "–", "no hat", false);
   for (const h of HATS) {
     const unlocked = best >= h.streak;
-    hatsEl.appendChild(mk(
-      unlocked ? h.id : "",                                   // locked click is a no-op via disabled
-      unlocked ? h.emoji : `🔒${h.streak}`,
-      unlocked ? h.label : `${h.label} — reach a ${h.streak}-day streak`,
-      unlocked && equipped === h.id,
-      !unlocked,
-    ));
+    add(h.id, h.emoji, unlocked ? h.label : `${h.label} · ${h.streak}-day streak`, !unlocked);
   }
 }
 renderHats();

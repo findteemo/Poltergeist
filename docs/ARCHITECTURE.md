@@ -195,14 +195,21 @@ reduced-motion, still running `then`).
   `halo`). `bumpStreak` records the best streak ever in `localStorage.bestStreak`;
   a hat is unlocked iff `bestStreak >= its milestone` (permanent — a broken streak
   never re-locks it). Hitting a milestone appends the unlock to the `__streak__`
-  cheer. `buildHat(id)` returns sparse `[x,y,key]` overlay cells drawn into the top
-  rows (y=0..2, above the dome) in `render()`, after `buildSprite`. Palette keys
-  `H`/`h` map to `--hat`/`--hat-shade` in `tokens.css` — defined once on `:root` as
-  `var()` refs to `--purple-bright`/`--purple`, so hats recolor per theme for free.
-  **Runtime-only** — `scripts/make_icon.js` is NOT touched (icon stays bare). The
-  settings tab has an emoji-swatch picker (locked hats show `🔒<streak>`); the
-  equipped id lives in `localStorage.ghostHat` and pushes live via the
-  `hat-changed` event (same pattern as `theme-changed`). Self-check:
+  cheer. **Rendering:** each hat is a filled pixel silhouette from `buildHat(id)`
+  (colored via the hat keys in `COLOR` — fixed hex, so hats keep their own colors
+  and do **not** recolor with the theme); `withOutline` auto-rings it in dark `K`
+  like `buildSprite` does the ghost. When a hat is worn, `render()` grows the ghost
+  grid from 16 to `HROWS` (24) rows — the ghost sits in the bottom 16 (offset
+  `GYOFF`), the hat rises into the top rows (where the bubble normally is), so it
+  bobs/celebrates/dims *with* the ghost (same element). Bare = 16 rows, so the empty
+  space above stays click-through (`ensureCells` shrinks the grid back). The
+  `#ghostwrap::before` aura is bottom-anchored to the ghost body so the taller grid
+  doesn't ride it up. **Runtime-only** — `scripts/make_icon.js` is NOT touched (icon
+  stays bare). The settings tab has a row of hat **emoji swatches** (`.hatsw` pixel
+  buttons, equipped = purple ring `.on`); locked hats show 🔒, disabled, with a
+  tooltip naming the streak needed. The
+  equipped id lives in `localStorage.ghostHat` and pushes live via
+  the `hat-changed` event (same pattern as `theme-changed`). Self-check:
   `scripts/test_hats.js`.
 - Reduced-motion: no yawn/startle/zzz-drift; doze still lands on a static dimmed
   sleeping face with a static `z z z`.
