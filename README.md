@@ -67,6 +67,10 @@ reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v Poltergeist /
   a turn (happy bounce) or needs your input (angry + purple flames). Set up in one
   click from the settings *agents* tab — it wires the hooks into each agent's own
   config automatically. Relaunch the agent once after installing.
+- **Day streaks & ghost hats** — acknowledging a reminder each day builds a streak;
+  hitting 3 / 7 / 14 / 30 / 60 / 100 days unlocks a collectible pixel hat (bow, cap,
+  crown, top hat, witch hat, halo) the ghost can wear. Pick one from the settings
+  *settings* tab; unlocks are permanent, so a broken streak never takes a hat away.
 - **Gentle chime** on each nudge (toggleable), and an adjustable ghost size.
 - **Auto-launch at login** (Windows) — toggleable in settings, survives restarts.
 - Reminders, to-dos, and your calendar settings persist to JSON files in your OS
