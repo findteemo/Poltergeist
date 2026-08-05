@@ -262,6 +262,22 @@ html, body {
 }
 #bubble .agentlogo { width: 16px; height: 16px; vertical-align: -3px; margin-right: 4px; image-rendering: auto; }
 #bubble .agentlogo[hidden] { display: none; }
+/* stacked-nudge counter — pinned to the bubble's top-right corner, inside the
+   frame so it stays within the reported click rect */
+#bubble .stack {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 18px;
+  padding: 1px 3px;
+  background: var(--purple);
+  color: var(--void);
+  font-size: 10px;
+  font-weight: bold;
+  line-height: 1.4;
+  text-align: center;
+}
+#bubble .stack[hidden] { display: none; }
 
 @keyframes flicker {
   0%, 100% { opacity: 0; }

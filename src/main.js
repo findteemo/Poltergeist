@@ -433,6 +433,7 @@ const bubble = document.getElementById("bubble");
 const bubbleText = bubble.querySelector(".text");
 const bubbleHint = bubble.querySelector(".hint");
 const bubbleLogo = bubble.querySelector(".agentlogo");
+const bubbleStack = bubble.querySelector(".stack");
 const AGENT_LOGO = { claude: "agent-claude.svg", codex: "agent-codex.svg" };
 console.assert(AGENT_LOGO.claude && AGENT_LOGO.codex, "agent logos mapped");
 // the hint reflects what clicking actually does — not always "dismiss"
@@ -455,11 +456,14 @@ const IDLE_ID = "__idle__";     // sentinel: an ambient idle mutter (no ack, no 
 const STREAK_ID = "__streak__"; // sentinel: a day-streak milestone cheer (no ack, no sulk, chimes + celebrates, auto-fades)
 const GREET_ID = "__greet__";       // sentinel: a once-a-day time-aware hello (silent celebrate, auto-fades)
 const FOCUSDONE_ID = "__focusdone__"; // sentinel: a proud cheer when a focus block completes (silent celebrate, auto-fades)
+// ambient bubbles that never make a sound — on show or on arrival
+const SILENT = new Set([IDLE_ID, GREET_ID, FOCUSDONE_ID]);
 
 function showNext() {
   clearTimeout(moodTimer);
   clearInterval(nagTimer);
   const next = queue.shift();
+  updateStack();
   if (!next) {
     currentId = null;
     bubble.classList.remove("show");
@@ -479,8 +483,9 @@ function showNext() {
   }
   bubble.classList.add("show");
   scheduleReport(); // bubble now interactive — include it
-  // idle mutters, greetings, and focus cheers are silent
-  if (next.id !== IDLE_ID && next.id !== GREET_ID && next.id !== FOCUSDONE_ID) chime();
+  // idle mutters, greetings, and focus cheers are silent; so is anything that
+  // already chimed on arrival while an earlier bubble held the screen
+  if (!SILENT.has(next.id) && !next.chimed) chime();
   // ignored too long → ghost gets sad, or angry+flames for poltergeist reminders
   // (update + calendar + agent + idle/greet/focus bubbles don't sulk — they just react on show)
   if (next.id === IDLE_ID) {
@@ -498,10 +503,26 @@ function showNext() {
   }
 }
 
+// Every queued nudge goes through here: it owns the stack counter and the
+// "something landed behind the open bubble" chime. Without it a reminder that
+// arrives while another bubble is up is completely silent until its turn comes.
+function enqueue(item) {
+  queue.push(item);
+  if (!currentId) { showNext(); return; }
+  if (!SILENT.has(item.id)) { chime(); item.chimed = true; } // once per nudge — showNext skips it later
+  updateStack();
+}
+
+// `+N` badge: how many nudges are still waiting behind the shown one.
+function updateStack() {
+  bubbleStack.textContent = String(queue.length);
+  bubbleStack.title = `${queue.length} more waiting`;
+  bubbleStack.hidden = queue.length === 0;
+}
+
 listen("reminder-due", (e) => {
-  queue.push(e.payload);
   wake(); // a nudge stirs the ghost if it had dozed off
-  if (!currentId) showNext();
+  enqueue(e.payload);
 });
 
 // Ambient idle chatter: every so often the resting ghost mutters to itself. Purely
@@ -516,8 +537,7 @@ function scheduleChatter() {
   // ponytail: random 4–8 min; a self-rescheduling timeout, not a poll (matches scheduleDoze)
   setTimeout(() => {
     if (!chatterOff && idle()) { // off via settings, or never interrupt a real bubble / sleep / focus / hover
-      queue.push({ id: IDLE_ID, label: IDLE_LINES[Math.floor(Math.random() * IDLE_LINES.length)] });
-      if (!currentId) showNext();
+      enqueue({ id: IDLE_ID, label: IDLE_LINES[Math.floor(Math.random() * IDLE_LINES.length)] });
     }
     scheduleChatter();
   }, (4 + Math.random() * 4) * 60000);
@@ -552,8 +572,7 @@ function bumpStreak() {
   emit("streak-changed"); // refresh the settings display if it's open
   const hat = HATS.find((h) => h.streak === count);
   if (hat) {
-    queue.push({ id: STREAK_ID, label: `🔥 ${count}-day streak! ${hat.emoji} ${hat.label} unlocked — see settings` });
-    if (!currentId) showNext();
+    enqueue({ id: STREAK_ID, label: `🔥 ${count}-day streak! ${hat.emoji} ${hat.label} unlocked — see settings` });
   }
 }
 console.assert(STREAK_MILESTONES.includes(7) && !STREAK_MILESTONES.includes(5), "streak milestone lookup");
@@ -574,7 +593,7 @@ localStorage.setItem("bestStreak", String(Math.max(
   const h = new Date().getHours();
   const line = h < 12 ? "morning ☀️" : h < 17 ? "afternoon ☀️" : h < 21 ? "evening 🌙" : "working late? 🌙";
   console.assert(["morning ☀️", "afternoon ☀️", "evening 🌙", "working late? 🌙"].includes(line), "greeting maps to a known line");
-  setTimeout(() => { queue.push({ id: GREET_ID, label: line }); if (!currentId) showNext(); }, 1500);
+  setTimeout(() => enqueue({ id: GREET_ID, label: line }), 1500);
 })();
 
 // Focus reward: a proud, count-aware cheer each time a focus block completes.
@@ -585,8 +604,7 @@ function rewardFocus() {
   localStorage.setItem("focusDate", today);
   localStorage.setItem("focusCount", n);
   const line = n === 1 ? "nice focus 💪" : n === 2 ? "2 sessions 🔥" : `${n} done — machine 🚀`;
-  queue.push({ id: FOCUSDONE_ID, label: line });
-  if (!currentId) showNext();
+  enqueue({ id: FOCUSDONE_ID, label: line });
 }
 
 bubble.addEventListener("click", async () => {
@@ -634,8 +652,7 @@ bubble.addEventListener("click", async () => {
 
 // Rust found a newer GitHub release — show a one-off "update ready" bubble.
 listen("update-available", (e) => {
-  queue.push({ id: UPDATE_ID, label: `✨ v${e.payload} ready — click to update` });
-  if (!currentId) showNext();
+  enqueue({ id: UPDATE_ID, label: `✨ v${e.payload} ready — click to update` });
 });
 
 charEl.addEventListener("contextmenu", (e) => {
@@ -678,13 +695,12 @@ function enterBreak() {
   focusLeft = breakMins * 60;
   phaseEnd = Date.now() + focusLeft * 1000;
   setMood("happy"); // drops the .writing class → notepad hides
-  queue.push({ id: BREAK_ID, label: `🌙 break · ${fmt(focusLeft)}` });
-  if (!currentId) showNext();
+  enqueue({ id: BREAK_ID, label: `🌙 break · ${fmt(focusLeft)}` });
   emitFocusStatus();
 }
 function dropBreakBubble() {
   if (currentId === BREAK_ID) showNext();
-  else { const i = queue.findIndex((q) => q.id === BREAK_ID); if (i >= 0) queue.splice(i, 1); }
+  else { const i = queue.findIndex((q) => q.id === BREAK_ID); if (i >= 0) { queue.splice(i, 1); updateStack(); } }
 }
 
 function tickFocus() {

@@ -145,6 +145,16 @@ walking side-to-side (`PAD_HEADS`). In `main.js`:
 - A shown bubble starts a timer (`cryMs`, settable in settings, default 1 min);
   if it elapses unacked → `setMood("sad")`, or `setMood("angry")` + lit `#flames`
   for a **poltergeist** reminder. Cleared on dismiss or when the bubble closes.
+- **Queue arrivals.** Every push goes through `enqueue(item)` (`main.js`) — the one
+  place that owns the stack counter and the arrival chime. A nudge that lands while
+  another bubble is up used to be silent until its turn; now it chimes **on arrival**
+  and is flagged `chimed` so `showNext` doesn't chime it a second time. Silent
+  sentinels (`__idle__`/`__greet__`/`__focusdone__`, the `SILENT` set) never chime
+  either way. The bubble carries a purple corner badge (`#bubble .stack`,
+  `updateStack()`) showing a bare count — no `+` — of the nudges still queued
+  behind the shown one; it hides at 0 and sits inside the bubble frame so the
+  reported click rect already covers it.
+  Self-check: `scripts/test_queue.js`.
 - A shown bubble also arms a repeating re-chime (`nagTimer` = `setInterval(chime,
   nagMs)`, settable in settings as "remind again every", default 5 min, `0` =
   off) so an unacked reminder keeps nudging by sound. Cleared alongside `moodTimer`

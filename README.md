@@ -71,6 +71,9 @@ reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v Poltergeist /
   hitting 3 / 7 / 14 / 30 / 60 / 100 days unlocks a collectible pixel hat (bow, cap,
   crown, top hat, witch hat, halo) the ghost can wear. Pick one from the settings
   *settings* tab; unlocks are permanent, so a broken streak never takes a hat away.
+- **Nudges that stack politely** — when a second nudge lands while one is already
+  on screen it chimes right away instead of waiting its turn, and the bubble shows
+  a small count of how many are still queued behind it.
 - **Gentle chime** on each nudge (toggleable), and an adjustable ghost size.
 - **Auto-launch at login** (Windows) — toggleable in settings, survives restarts.
 - Reminders, to-dos, and your calendar settings persist to JSON files in your OS
