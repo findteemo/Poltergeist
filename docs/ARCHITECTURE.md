@@ -347,6 +347,12 @@ bubble**.
 - **After changing the icon, Windows caches the old one.** The exe must be unlocked
   (app not running) to relink. Then recreate the `.lnk` and run
   `ie4uinit.exe -ClearIconCache` + restart Explorer, or the shortcut shows stale art.
+- **Run the signed release build from a POSIX shell, not PowerShell.** In
+  PowerShell `$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""` *deletes* the variable
+  instead of setting it empty, so the signer falls back to an interactive
+  passphrase prompt — with stdin detached the build just sits there forever after
+  writing the installers (`.sig` files never appear, cargo idles at ~0% CPU).
+  Use `export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""` in bash.
 - **Moving the project folder breaks `target/`** — Tauri bakes absolute paths into
   codegen. Run `cargo clean` (or delete `target/`) after a move or the build fails
   with a path error.
