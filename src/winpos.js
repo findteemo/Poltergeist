@@ -1,12 +1,13 @@
 // Remember each window's on-screen position across launches. Keyed by window
 // label in localStorage: restored on load, saved (debounced) whenever you drag.
-// Shared by the character, settings and to-do windows.
+// Shared by the character, settings, to-do and calendar windows.
 //
-// Also keeps the window on a connected monitor: if it ends up fully off-screen
-// (e.g. the monitor it lived on was unplugged), it's pulled back onto the
-// primary monitor — on load and on a slow poll, so a mid-session disconnect
-// doesn't strand a window in the void. The saved spot is left untouched, so
-// reconnecting the monitor restores the window to where you left it.
+// Also keeps the window on a connected monitor: a saved spot whose monitor is
+// gone (unplugged before this launch) is not restored at all, and a window that
+// ends up off-screen anyway is pulled back onto the primary — on load and on a
+// slow poll, so a mid-session disconnect doesn't strand it in the void. The
+// saved spot is left untouched, so reconnecting the monitor restores the window
+// to where you left it.
 (async () => {
   const { getCurrentWindow, PhysicalPosition, availableMonitors, primaryMonitor } = window.__TAURI__.window;
   const w = getCurrentWindow();
@@ -14,12 +15,20 @@
   let ready = false;
   let rescuing = false; // suppress saving while we reposition a stranded window
 
-  // True if the window's rect overlaps any connected monitor at all.
+  // True if the window's CENTER sits on a connected monitor. Center, not "any
+  // overlap": the ghost fills only the bottom-center of a mostly-empty 240x260
+  // box, so a window clipping a monitor by its empty top edge counts as
+  // on-screen while showing nothing at all. Also still lets you tuck a window
+  // up to halfway off an edge on purpose.
+  function centered(pos, size, mons) {
+    const cx = pos.x + size.width / 2, cy = pos.y + size.height / 2;
+    return mons.some((m) =>
+      cx >= m.position.x && cx < m.position.x + m.size.width &&
+      cy >= m.position.y && cy < m.position.y + m.size.height);
+  }
   async function onScreen() {
     const [pos, size, mons] = await Promise.all([w.outerPosition(), w.outerSize(), availableMonitors()]);
-    return mons.some((m) =>
-      pos.x < m.position.x + m.size.width && pos.x + size.width > m.position.x &&
-      pos.y < m.position.y + m.size.height && pos.y + size.height > m.position.y);
+    return centered(pos, size, mons);
   }
   // Pull a stranded window back onto the primary monitor (centered).
   async function rescue() {
@@ -38,9 +47,15 @@
 
   try {
     const saved = JSON.parse(localStorage.getItem(KEY) || "null");
-    if (saved) await w.setPosition(new PhysicalPosition(saved.x, saved.y));
+    // Only restore onto a monitor that's still connected. Moving there first and
+    // letting rescue() undo it depends on the move having landed before we read
+    // the position back; refusing the move up front just leaves the window where
+    // the OS put it (on the primary). The saved spot is kept either way, so
+    // plugging the monitor back in restores it.
+    if (saved && centered(saved, await w.outerSize(), await availableMonitors()))
+      await w.setPosition(new PhysicalPosition(saved.x, saved.y));
   } catch (e) {}
-  await rescue(); // the saved spot may be on a monitor that's no longer attached
+  await rescue(); // belt and braces: also covers a window the OS placed badly
 
   // ponytail: poll for a monitor going away mid-session — the webview has no
   // reliable display-change event. 5s, cheap bounds math, no-op while on-screen.

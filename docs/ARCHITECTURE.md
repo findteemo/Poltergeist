@@ -14,7 +14,8 @@ Theme: cozy spectral, black + purple, monospace type, chunky pixel borders.
 ```sh
 cargo run            # dev launch
 cargo test           # Rust unit tests (reminders / store / calendar / agents / hooks / hit-test)
-node scripts/test_queue.js  # frontend logic self-checks; also test_datetime.js, test_unit.js
+node scripts/test_queue.js  # frontend logic self-checks; also test_datetime.js,
+                            # test_unit.js, test_hats.js, test_winpos.js
 cargo build --release
 cargo tauri build      # exe + installers (msi + nsis) in target/release/bundle/
 node scripts/make_icon.js   # regenerate icons/icon.ico from the sprite
@@ -75,7 +76,12 @@ No Node build step — the frontend is static files in `src/`.
   tokens.css block); listens `theme-changed` (emitted by the settings dropdown) to
   re-apply live. The ghost sprite recolors for free — cells reference `var(--ghost)`.
 - `src/winpos.js` — remembers each window's on-screen position across launches
-  (localStorage keyed by window label). Loaded by all four windows.
+  (localStorage keyed by window label). Loaded by all four windows. Also keeps
+  windows reachable across monitor changes: a saved spot is only restored if its
+  **center** would land on a currently-connected monitor, and a 5s poll re-centers
+  a window that goes off-screen mid-session (no reliable display-change event in
+  the webview). The saved spot is never overwritten by a rescue, so replugging the
+  monitor puts the window back. Self-check: `scripts/test_winpos.js`.
 - `src-tauri/scripts/make_icon.js` — generates `icons/icon.ico` (exe/shortcut
   icon) **and** `icons/icon.rgba` (runtime window icon via `Image::new`) from the
   **same ghost sprite**. Keep its `buildSprite()` in sync with `src/main.js`.
@@ -362,6 +368,16 @@ bubble**.
   WebView2; native GUI would be the only honest path if that's required.
 - **Transparent overlay works**; the blank-screen episodes were `--single-process`,
   not transparency.
+- **A saved window position is only valid for the monitor layout that saved it.**
+  Park the ghost on an external monitor, shut down, boot without it → restoring
+  the saved coords drops the window onto a desktop area that no longer exists
+  (invisible, unclickable, "the ghost never came back"). Validate the saved spot
+  against `availableMonitors()` *before* `setPosition`, don't move first and
+  correct after — the correction depends on reading the position back after the
+  move landed. And **"overlaps a monitor" ≠ "visible"**: the ghost fills only the
+  bottom-center of a mostly-empty 240×260 window, so a rect clipping the screen by
+  its empty top edge passes an overlap test while showing nothing. `winpos.js`
+  tests the window's **center** instead.
 - **Claude Desktop can't be an agent source.** The whole agent-notify path relies
   on the agent running an external command (`poltergeist.exe notify …`) at a
   lifecycle point (Stop / Notification hook). Claude **Desktop** exposes no such
