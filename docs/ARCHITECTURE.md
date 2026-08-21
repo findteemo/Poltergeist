@@ -83,8 +83,12 @@ No Node build step — the frontend is static files in `src/`.
   the webview). The saved spot is never overwritten by a rescue, so replugging the
   monitor puts the window back. Self-check: `scripts/test_winpos.js`.
 - `src-tauri/scripts/make_icon.js` — generates `icons/icon.ico` (exe/shortcut
-  icon) **and** `icons/icon.rgba` (runtime window icon via `Image::new`) from the
-  **same ghost sprite**. Keep its `buildSprite()` in sync with `src/main.js`.
+  icon), `icons/icon.rgba` (runtime window icon via `Image::new`), and
+  `icons/icon.png` + `128x128.png` (macOS — tauri-bundler builds `.icns` from the
+  PNGs listed in `bundle.icon`, so no `.icns` is committed) from the **same ghost
+  sprite**. Keep its `buildSprite()` in sync with `src/main.js`. The PNG writer is
+  hand-rolled on stdlib `zlib`; its `console.assert` on the canonical IEND CRC is
+  the self-check.
 
 ## Installer stays in sync with the app
 
@@ -98,6 +102,32 @@ locked `poltergeist.exe` (the app auto-starts at login now, so it's often runnin
 
 For GitHub: installers live under `target/` (gitignored) — distribute them as
 **Release assets**, don't commit binaries. The README links to `../../releases`.
+
+## macOS build (CI only)
+
+Tauri can't cross-compile Windows → macOS (it needs Xcode + the macOS SDK), so
+the `.dmg` is built by `.github/workflows/macos.yml` on a `macos-latest` runner —
+the only CI in the repo; Windows installers are still built by hand.
+
+- Triggers on `push` of a `v*` tag, plus `workflow_dispatch` for a dmg without a
+  release. Builds `--target universal-apple-darwin` (Apple Silicon + Intel in one
+  binary; both rust targets are installed by `dtolnay/rust-toolchain`).
+- `tauri-apps/tauri-action@v0` is given **no `tagName`**, so it only builds and
+  never creates/edits a release. The dmg is uploaded as a run artifact, then
+  `gh release upload --clobber` attaches it to the tag's existing release (a
+  missing release just logs — the artifact is still there).
+- Needs the repo secret **`TAURI_SIGNING_PRIVATE_KEY`** (contents of
+  `~/.tauri/poltergeist.key`, password `""`). `createUpdaterArtifacts: true` +
+  a pubkey in `tauri.conf.json` makes the build **fail** without it.
+- The dmg is **unsigned and un-notarized** — Gatekeeper blocks first launch
+  (right-click → Open, or `xattr -dr com.apple.quarantine`). Signing needs a paid
+  Apple Developer ID; deliberately skipped.
+- `latest.json` still only carries a `windows-x86_64` platform, so **mac doesn't
+  auto-update** even though the build emits mac updater artifacts. Add a
+  `darwin-universal` entry (url = the `.app.tar.gz`, signature = its `.sig`) when
+  that's wanted.
+- macOS focus handling (`platform/mac.rs`) is still **unverified on real
+  hardware** — shipping a dmg doesn't change that.
 
 ## Auto-update (GitHub Releases)
 
@@ -348,8 +378,11 @@ bubble**.
   tested by typing in another app while clicking the bubble — typing must not skip.
 - **`icons/icon.ico` must exist** or `tauri-build` fails on Windows even with
   bundling off. Regenerate with `scripts/make_icon.js`.
-- **Icons live in two places:** the exe/shortcut icon (embedded `icon.ico`) and the
-  live window/taskbar icon (`set_icon` with `icon.rgba` in `main.rs`). Update both.
+- **Icons live in three places:** the exe/shortcut icon (embedded `icon.ico`), the
+  live window/taskbar icon (`set_icon` with `icon.rgba` in `main.rs`), and the
+  macOS PNGs the bundler turns into `.icns`. `make_icon.js` writes all of them —
+  rerun it, don't hand-edit one. Keep `icon.ico` **first** in `bundle.icon` so the
+  Windows resource still picks it up.
 - **After changing the icon, Windows caches the old one.** The exe must be unlocked
   (app not running) to relink. Then recreate the `.lnk` and run
   `ie4uinit.exe -ClearIconCache` + restart Explorer, or the shortcut shows stale art.

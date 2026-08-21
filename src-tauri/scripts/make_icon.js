@@ -1,4 +1,4 @@
-// Generates icons/icon.ico (16x16, 32-bit BGRA) from the ghost sprite. No deps.
+// Generates icons/icon.ico + icon.rgba + the macOS PNGs from the ghost sprite. No deps.
 // Authored for this project, CC0. Run: node scripts/make_icon.js
 // Keep this sprite in sync with buildSprite() in ../../src/main.js.
 const fs = require("fs");
@@ -92,3 +92,54 @@ for (let y = 0; y < OH; y++) for (let x = 0; x < OW; x++) {
 const rout = path.join(__dirname, "..", "icons", "icon.rgba");
 fs.writeFileSync(rout, rgba);
 console.log("wrote", rout, rgba.length, "bytes (32x32 RGBA)");
+
+// And PNGs for the macOS bundle: tauri-bundler builds icon.icns from whatever
+// PNGs are listed in tauri.conf.json `bundle.icon`, so no .icns is committed.
+// ponytail: hand-rolled PNG (zlib is stdlib, filter 0, ~20 lines) beats adding
+// an image dep for two flat pixel-art files.
+const zlib = require("zlib");
+const CRC = Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+function crc32(buf) {
+  let c = 0xffffffff;
+  for (const b of buf) c = CRC[(c ^ b) & 255] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+console.assert(crc32(Buffer.from("IEND")) === 0xae426082, "crc32 is broken"); // the canonical IEND crc
+function chunk(type, data) {
+  const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+  const body = Buffer.concat([Buffer.from(type, "ascii"), data]);
+  const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(body));
+  return Buffer.concat([len, body, crc]);
+}
+function writePng(px, name) {
+  const scale = px / W; // integer → nearest-neighbor, art stays crisp
+  const raw = Buffer.alloc(px * (px * 4 + 1)); // each row: filter byte + RGBA
+  let o = 0;
+  for (let y = 0; y < px; y++) {
+    raw[o++] = 0; // filter: none
+    for (let x = 0; x < px; x++, o += 4) {
+      const k = g[Math.floor(y / scale)][Math.floor(x / scale)];
+      if (k === ".") continue; // transparent (already zeroed)
+      const [r, gg, b] = COLOR[k];
+      raw[o] = r; raw[o + 1] = gg; raw[o + 2] = b; raw[o + 3] = 255;
+    }
+  }
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(px, 0); ihdr.writeUInt32BE(px, 4);
+  ihdr[8] = 8; ihdr[9] = 6; // 8 bits/channel, RGBA
+  const png = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", ihdr),
+    chunk("IDAT", zlib.deflateSync(raw)),
+    chunk("IEND", Buffer.alloc(0)),
+  ]);
+  const p = path.join(__dirname, "..", "icons", name);
+  fs.writeFileSync(p, png);
+  console.log("wrote", p, png.length, "bytes", `(${px}x${px} PNG)`);
+}
+writePng(128, "128x128.png");
+writePng(1024, "icon.png"); // 1024 is a real .icns size (ic10)
