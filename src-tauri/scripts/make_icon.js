@@ -141,5 +141,9 @@ function writePng(px, name) {
   fs.writeFileSync(p, png);
   console.log("wrote", p, png.length, "bytes", `(${px}x${px} PNG)`);
 }
+// Sizes must be ones `icns::IconType::from_pixel_size_and_density(px, px, 1)`
+// accepts (16/32/128/256/512). 1024 exists only as 512@2x — density 2, which the
+// bundler infers from an "@2x" filename — so a 1024 icon.png fails the whole
+// bundle with "No matching IconType".
 writePng(128, "128x128.png");
-writePng(1024, "icon.png"); // 1024 is a real .icns size (ic10)
+writePng(512, "icon.png");

@@ -84,9 +84,9 @@ No Node build step — the frontend is static files in `src/`.
   monitor puts the window back. Self-check: `scripts/test_winpos.js`.
 - `src-tauri/scripts/make_icon.js` — generates `icons/icon.ico` (exe/shortcut
   icon), `icons/icon.rgba` (runtime window icon via `Image::new`), and
-  `icons/icon.png` + `128x128.png` (macOS — tauri-bundler builds `.icns` from the
-  PNGs listed in `bundle.icon`, so no `.icns` is committed) from the **same ghost
-  sprite**. Keep its `buildSprite()` in sync with `src/main.js`. The PNG writer is
+  `icons/icon.png` (512) + `128x128.png` (macOS — tauri-bundler builds `.icns`
+  from the PNGs listed in `bundle.icon`, so no `.icns` is committed; **the sizes
+  are load-bearing**, see gotchas) from the **same ghost sprite**. Keep its `buildSprite()` in sync with `src/main.js`. The PNG writer is
   hand-rolled on stdlib `zlib`; its `console.assert` on the canonical IEND CRC is
   the self-check.
 - `src-tauri/scripts/make_latest_json.js` — generates the `latest.json` updater
@@ -431,6 +431,17 @@ bubble**.
   passphrase prompt — with stdin detached the build just sits there forever after
   writing the installers (`.sig` files never appear, cargo idles at ~0% CPU).
   Use `export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""` in bash.
+- **The macOS bundler builds `.icns` from the PNGs in `bundle.icon`, and only
+  accepts sizes `icns` knows at density 1** (16/32/128/256/512). A 1024px
+  `icon.png` fails the whole mac bundle with `Failed to create app icon: No
+  matching IconType` — 1024 exists only as *512@2x*, density 2, which the bundler
+  infers from an `@2x` filename. Most Tauri projects never hit this because they
+  commit a real `.icns` and the PNG path is never reached. `make_icon.js` emits
+  128 + 512 for this reason; don't "upgrade" it to 1024.
+- **A failed mac build can still be attached to an already-published release:**
+  run the workflow manually with its `tag` input (`v1.6.0`). The `release:
+  published` event fires exactly once, so a re-run after a code fix has to come
+  through `workflow_dispatch`.
 - **The updater signing key never goes into CI, and actions are SHA-pinned.** The
   pubkey is compiled into every shipped binary, so a leaked private key can't be
   revoked — it signs updates that all existing installs execute, forever. That

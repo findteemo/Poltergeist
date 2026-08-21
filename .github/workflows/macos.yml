@@ -13,7 +13,12 @@ name: macOS build
 on:
   release:
     types: [published]
-  workflow_dispatch: # build a dmg without touching any release
+  workflow_dispatch: # rebuild after a CI fix, or just get a dmg
+    inputs:
+      tag:
+        description: "Attach the build to this existing release tag (blank = run artifacts only)"
+        required: false
+        default: ""
 
 permissions:
   contents: write # for `gh release upload`
@@ -56,10 +61,10 @@ jobs:
           path: dist/*
 
       - name: Attach to the release
-        if: github.event_name == 'release'
+        if: github.event_name == 'release' || inputs.tag != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.event.release.tag_name }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
         run: |
           set -euo pipefail
           gh release upload "$TAG" dist/* --clobber
