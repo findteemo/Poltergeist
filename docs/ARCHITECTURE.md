@@ -109,23 +109,22 @@ Tauri can't cross-compile Windows → macOS (it needs Xcode + the macOS SDK), so
 the `.dmg` is built by `.github/workflows/macos.yml` on a `macos-latest` runner —
 the only CI in the repo; Windows installers are still built by hand.
 
-- Triggers on `push` of a `v*` tag, plus `workflow_dispatch` for a dmg without a
-  release. Builds `--target universal-apple-darwin` (Apple Silicon + Intel in one
-  binary; both rust targets are installed by `dtolnay/rust-toolchain`).
+- Triggers on **`release: published`**, plus `workflow_dispatch` for a dmg without
+  touching any release. **Not** on tag push: the job merges the mac half into
+  `latest.json`, so the release (with the Windows manifest already attached) has to
+  exist first. Builds `--target universal-apple-darwin` (Apple Silicon + Intel in
+  one binary; both rust targets come from `dtolnay/rust-toolchain`).
 - `tauri-apps/tauri-action@v0` is given **no `tagName`**, so it only builds and
-  never creates/edits a release. The dmg is uploaded as a run artifact, then
-  `gh release upload --clobber` attaches it to the tag's existing release (a
-  missing release just logs — the artifact is still there).
+  never creates/edits the release — the release body you wrote stays yours. The
+  artifacts go up via `gh release upload --clobber`, and are also kept as run
+  artifacts (the only output of a `workflow_dispatch` run).
 - Needs the repo secret **`TAURI_SIGNING_PRIVATE_KEY`** (contents of
   `~/.tauri/poltergeist.key`, password `""`). `createUpdaterArtifacts: true` +
-  a pubkey in `tauri.conf.json` makes the build **fail** without it.
+  a pubkey in `tauri.conf.json` makes the build **fail** without it — and it's what
+  produces the signed `.app.tar.gz` mac auto-update needs.
 - The dmg is **unsigned and un-notarized** — Gatekeeper blocks first launch
   (right-click → Open, or `xattr -dr com.apple.quarantine`). Signing needs a paid
-  Apple Developer ID; deliberately skipped.
-- `latest.json` still only carries a `windows-x86_64` platform, so **mac doesn't
-  auto-update** even though the build emits mac updater artifacts. Add a
-  `darwin-universal` entry (url = the `.app.tar.gz`, signature = its `.sig`) when
-  that's wanted.
+  Apple Developer ID; deliberately skipped. Auto-updating doesn't clear that state.
 - macOS focus handling (`platform/mac.rs`) is still **unverified on real
   hardware** — shipping a dmg doesn't change that.
 
@@ -149,13 +148,27 @@ passphrase**. Release builds must be signed:
 file. (To rotate: `cargo tauri signer generate -w ~/.tauri/poltergeist.key`,
 then update the pubkey.)
 
-**Each release:** upload the NSIS `*-setup.exe`, and a `latest.json` asset:
+**Each release:** upload the NSIS `*-setup.exe`, and a `latest.json` asset —
+**Windows only, by hand**; publishing the release fires the macOS workflow, which
+uploads the mac assets and merges the `darwin-*` platforms into this same file:
 ```json
 { "version": "1.1.0", "notes": "...", "pub_date": "<RFC3339>",
   "platforms": { "windows-x86_64": {
     "signature": "<contents of the .sig file>",
     "url": "https://github.com/findteemo/Poltergeist/releases/download/v1.1.0/Poltergeist_1.1.0_x64-setup.exe" } } }
 ```
+
+**macOS auto-update** works exactly like Windows — same check → download → verify
+→ install → restart path; `install_inner` (`updater.rs`) untars the `.app.tar.gz`,
+backs up the current `.app`, swaps the new one in, and escalates via an AppleScript
+admin prompt if the bundle isn't writable. Two mac-specific details, both handled
+by the workflow's `jq` merge:
+- The update asset is the **`.app.tar.gz`**, not the dmg (dmg = first install only).
+- The updater looks up **`darwin-<arch>` exactly** (`target()` in `updater.rs` is
+  `format!("{os}-{arch}")`, an exact `platforms` map key with **no
+  `darwin-universal` fallback** in v2.10.1 — a missing key is `TargetNotFound`).
+  So `darwin-aarch64` **and** `darwin-x86_64` are both written, pointing at the
+  same universal tarball.
 
 **Caveat:** v1.0 shipped *without* the updater, so those installs can't
 auto-update — they need one manual install of any ≥ v1.1 build. Dev (`cargo run`)

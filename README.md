@@ -26,9 +26,9 @@ Built with **Tauri 2** (Rust + the OS webview), so it stays light on RAM.
 **`Poltergeist_x.y.z_universal.dmg`**, drag it to Applications. The app is
 **unsigned and un-notarized**, so Gatekeeper blocks the first launch — right-click
 the app → *Open* → *Open*, or run
-`xattr -dr com.apple.quarantine /Applications/Poltergeist.app`. Auto-update is
-Windows-only for now, and the mac build's focus handling hasn't been verified on
-real hardware (see [Notes](#notes)) — treat it as beta.
+`xattr -dr com.apple.quarantine /Applications/Poltergeist.app`. Auto-update works
+the same as on Windows from there. The mac build's focus handling hasn't been
+verified on real hardware (see [Notes](#notes)) — treat it as beta.
 
 **Updates:** from this version on, Poltergeist checks for new releases at
 startup and the ghost offers a *"✨ update ready"* bubble — click it to install
@@ -129,10 +129,11 @@ cargo tauri build
 Installers land in `src-tauri/target/release/bundle/` (`nsis/` and `msi/`), and
 the raw binary in `src-tauri/target/release/poltergeist.exe`.
 
-**Build the macOS .dmg** — needs a Mac; Tauri can't cross-compile. On a tag push
-(or a manual *Run workflow*) `.github/workflows/macos.yml` builds a universal
-`.dmg` on a GitHub macOS runner and attaches it to that tag's release. It needs
-the repo secret `TAURI_SIGNING_PRIVATE_KEY` (the updater key), or the build fails.
+**Build the macOS .dmg** — needs a Mac; Tauri can't cross-compile. Publishing a
+release (or a manual *Run workflow*) makes `.github/workflows/macos.yml` build a
+universal `.dmg` on a GitHub macOS runner, attach it plus the update tarball to
+that release, and add the `darwin-*` entries to its `latest.json`. It needs the
+repo secret `TAURI_SIGNING_PRIVATE_KEY` (the updater key), or the build fails.
 
 **Test**
 

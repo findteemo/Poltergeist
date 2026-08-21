@@ -4,9 +4,11 @@
 name: macOS build
 
 on:
-  push:
-    tags: ["v*"]
-  workflow_dispatch: # build a dmg without cutting a release
+  # Not on tag push: this job merges the mac half into latest.json, so the
+  # release (with the Windows manifest already on it) has to exist first.
+  release:
+    types: [published]
+  workflow_dispatch: # build a dmg without touching any release
 
 permissions:
   contents: write # for `gh release upload`
@@ -14,6 +16,8 @@ permissions:
 jobs:
   dmg:
     runs-on: macos-latest
+    env:
+      BUNDLE: src-tauri/target/universal-apple-darwin/release/bundle
     steps:
       - uses: actions/checkout@v4
 
@@ -27,6 +31,7 @@ jobs:
 
       # Signing key is required: tauri.conf.json has createUpdaterArtifacts +
       # a pubkey, so the build errors out without the matching private key.
+      # It also produces the .app.tar.gz + .sig that mac auto-update needs.
       - uses: tauri-apps/tauri-action@v0
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -36,14 +41,34 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: poltergeist-macos-dmg
-          path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          name: poltergeist-macos
+          path: |
+            ${{ env.BUNDLE }}/dmg/*.dmg
+            ${{ env.BUNDLE }}/macos/*.app.tar.gz*
 
-      - name: Attach to the release
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Attach to the release + wire up mac auto-update
+        if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+          REPO: ${{ github.repository }}
         run: |
-          gh release upload "$GITHUB_REF_NAME" \
-            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg --clobber \
-            || echo "no release for $GITHUB_REF_NAME yet — download the dmg from this run's artifacts"
+          set -euo pipefail
+          targz=$(ls "$BUNDLE"/macos/*.app.tar.gz)  # dmg = first install, tar.gz = updates
+          gh release upload "$TAG" "$BUNDLE"/dmg/*.dmg "$targz" "$targz.sig" --clobber
+
+          # latest.json is authored by the Windows release; merge the mac half in.
+          # Both arch keys point at the same universal tarball — the updater looks
+          # up "darwin-<arch>" exactly (updater.rs `target()`), no universal fallback.
+          gh release download "$TAG" -p latest.json -O latest.json --clobber || {
+            echo "::error::no latest.json on $TAG — publish the Windows manifest first, then re-run this workflow"
+            exit 1
+          }
+          jq --arg sig "$(cat "$targz.sig")" \
+             --arg url "https://github.com/$REPO/releases/download/$TAG/$(basename "$targz")" \
+             '.platforms["darwin-aarch64"] = {signature: $sig, url: $url}
+              | .platforms["darwin-x86_64"] = .platforms["darwin-aarch64"]' \
+             latest.json > merged.json
+          mv merged.json latest.json
+          gh release upload "$TAG" latest.json --clobber
+          echo "mac auto-update wired:"; jq -r '.platforms | keys[]' latest.json
