@@ -89,6 +89,9 @@ No Node build step — the frontend is static files in `src/`.
   sprite**. Keep its `buildSprite()` in sync with `src/main.js`. The PNG writer is
   hand-rolled on stdlib `zlib`; its `console.assert` on the canonical IEND CRC is
   the self-check.
+- `src-tauri/scripts/make_latest_json.js` — generates the `latest.json` updater
+  manifest from the release's `.sig` files (see Auto-update). `--selfcheck` runs
+  its asserts.
 
 ## Installer stays in sync with the app
 
@@ -110,21 +113,29 @@ the `.dmg` is built by `.github/workflows/macos.yml` on a `macos-latest` runner 
 the only CI in the repo; Windows installers are still built by hand.
 
 - Triggers on **`release: published`**, plus `workflow_dispatch` for a dmg without
-  touching any release. **Not** on tag push: the job merges the mac half into
-  `latest.json`, so the release (with the Windows manifest already attached) has to
-  exist first. Builds `--target universal-apple-darwin` (Apple Silicon + Intel in
-  one binary; both rust targets come from `dtolnay/rust-toolchain`).
-- `tauri-apps/tauri-action@v0` is given **no `tagName`**, so it only builds and
-  never creates/edits the release — the release body you wrote stays yours. The
-  artifacts go up via `gh release upload --clobber`, and are also kept as run
-  artifacts (the only output of a `workflow_dispatch` run).
-- Needs the repo secret **`TAURI_SIGNING_PRIVATE_KEY`** (contents of
-  `~/.tauri/poltergeist.key`, password `""`). `createUpdaterArtifacts: true` +
-  a pubkey in `tauri.conf.json` makes the build **fail** without it — and it's what
-  produces the signed `.app.tar.gz` mac auto-update needs.
+  touching any release. Builds `--target universal-apple-darwin` (Apple Silicon +
+  Intel in one binary; both rust targets come from `dtolnay/rust-toolchain`), then
+  uploads the `.dmg` **and** a `Poltergeist.app.tar.gz` update payload it tars
+  itself — same shape the bundler makes, since `install_inner` just untars and
+  strips the first path component.
+- **The signing key is never in CI.** The build runs with
+  `--config '{"bundle":{"createUpdaterArtifacts":false}}'` so it needs no key, and
+  the tarball is signed afterwards on the dev machine (see Auto-update). A key in
+  Actions secrets would be usable by anyone who can run a workflow, to sign an
+  update every installed copy executes — and it **can't be revoked**, because the
+  pubkey is compiled into every shipped binary. Not a risk worth a convenience.
+- **Every action is pinned to a full commit SHA**, not `@v4`/`@stable`. Mutable
+  tags are a code-execution path into a build users install. Bump them
+  deliberately. For the same reason there's **no build cache** — cached objects
+  link straight into a shipped binary, and a release-only job can afford the
+  ~10min cold build. The tauri CLI comes from `npx @tauri-apps/cli@<exact>`
+  (npm versions are immutable), not a third-party action.
+- Only `contents: write`, and the tag reaches the shell through `env:`, never
+  `${{ }}` interpolation inside `run:` (Actions script injection).
 - The dmg is **unsigned and un-notarized** — Gatekeeper blocks first launch
-  (right-click → Open, or `xattr -dr com.apple.quarantine`). Signing needs a paid
-  Apple Developer ID; deliberately skipped. Auto-updating doesn't clear that state.
+  (right-click → Open, or `xattr -dr com.apple.quarantine`). Fixing that needs a
+  paid Apple Developer ID; **known gap**, not an oversight. The update channel is
+  signature-verified even though the first install isn't.
 - macOS focus handling (`platform/mac.rs`) is still **unverified on real
   hardware** — shipping a dmg doesn't change that.
 
@@ -148,21 +159,36 @@ passphrase**. Release builds must be signed:
 file. (To rotate: `cargo tauri signer generate -w ~/.tauri/poltergeist.key`,
 then update the pubkey.)
 
-**Each release:** upload the NSIS `*-setup.exe`, and a `latest.json` asset —
-**Windows only, by hand**; publishing the release fires the macOS workflow, which
-uploads the mac assets and merges the `darwin-*` platforms into this same file:
-```json
-{ "version": "1.1.0", "notes": "...", "pub_date": "<RFC3339>",
-  "platforms": { "windows-x86_64": {
-    "signature": "<contents of the .sig file>",
-    "url": "https://github.com/findteemo/Poltergeist/releases/download/v1.1.0/Poltergeist_1.1.0_x64-setup.exe" } } }
-```
+**Each release, in order** (the signing key never leaves this machine):
+
+1. Build + sign locally (bash, not PowerShell — see gotchas), then **publish** the
+   GitHub release with the NSIS `*-setup.exe`. Publishing is what fires the macOS
+   workflow; a draft fires nothing.
+2. Wait for the workflow. It attaches `Poltergeist_x.y.z_universal.dmg` and
+   `Poltergeist.app.tar.gz` (unsigned — CI has no key).
+3. Download that tarball, sign it, and generate the manifest:
+   ```sh
+   cargo tauri signer sign -f ~/.tauri/poltergeist.key -p "" Poltergeist.app.tar.gz
+   node scripts/make_latest_json.js --notes "…" \
+     --win  target/release/bundle/nsis/Poltergeist_x.y.z_x64-setup.exe.sig \
+     --mac  Poltergeist.app.tar.gz.sig
+   ```
+4. Upload the resulting `latest.json` as a release asset. **Last step** — until
+   it's up, nobody is offered the update, which is the safe failure mode.
+
+`make_latest_json.js` exists because a hand-written manifest is how you ship a
+stale or mismatched signature: every client rejects the update, and the fix only
+reaches people who reinstall by hand. It base64-decodes each `.sig` and refuses
+anything that isn't a minisign signature. Self-check: `--selfcheck`. Omit `--mac`
+for a Windows-only release.
 
 **macOS auto-update** works exactly like Windows — same check → download → verify
-→ install → restart path; `install_inner` (`updater.rs`) untars the `.app.tar.gz`,
-backs up the current `.app`, swaps the new one in, and escalates via an AppleScript
-admin prompt if the bundle isn't writable. Two mac-specific details, both handled
-by the workflow's `jq` merge:
+→ install → restart path, and `download()` runs `verify_signature` on the bytes
+(`updater.rs:712`) before anything is written, so a compromised host can't push
+code without the key. `install_inner` untars the `.app.tar.gz`, backs up the
+current `.app`, swaps the new one in, and escalates via an AppleScript admin
+prompt if the bundle isn't writable. Two mac-specific details, both handled by
+`make_latest_json.js`:
 - The update asset is the **`.app.tar.gz`**, not the dmg (dmg = first install only).
 - The updater looks up **`darwin-<arch>` exactly** (`target()` in `updater.rs` is
   `format!("{os}-{arch}")`, an exact `platforms` map key with **no
@@ -405,6 +431,12 @@ bubble**.
   passphrase prompt — with stdin detached the build just sits there forever after
   writing the installers (`.sig` files never appear, cargo idles at ~0% CPU).
   Use `export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""` in bash.
+- **The updater signing key never goes into CI, and actions are SHA-pinned.** The
+  pubkey is compiled into every shipped binary, so a leaked private key can't be
+  revoked — it signs updates that all existing installs execute, forever. That
+  makes anything with access to the key (a repo secret, a mutable action tag, a
+  poisoned build cache) a silent-RCE path into every user's machine, which is a
+  much worse failure than a slower release. Sign locally, pin by SHA, no cache.
 - **Moving the project folder breaks `target/`** — Tauri bakes absolute paths into
   codegen. Run `cargo clean` (or delete `target/`) after a move or the build fails
   with a path error.

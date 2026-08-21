@@ -131,9 +131,9 @@ the raw binary in `src-tauri/target/release/poltergeist.exe`.
 
 **Build the macOS .dmg** — needs a Mac; Tauri can't cross-compile. Publishing a
 release (or a manual *Run workflow*) makes `.github/workflows/macos.yml` build a
-universal `.dmg` on a GitHub macOS runner, attach it plus the update tarball to
-that release, and add the `darwin-*` entries to its `latest.json`. It needs the
-repo secret `TAURI_SIGNING_PRIVATE_KEY` (the updater key), or the build fails.
+universal `.dmg` on a GitHub macOS runner and attach it, plus the update tarball,
+to that release. CI builds **unsigned** and holds no secrets; the update payload
+is signed on the maintainer's machine afterwards (see `docs/ARCHITECTURE.md`).
 
 **Test**
 
