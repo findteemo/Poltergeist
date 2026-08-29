@@ -650,6 +650,68 @@ bubble.addEventListener("click", async () => {
   showNext();
 });
 
+// ---- doomscroll guard ----
+// Rust (doom.rs) polls the foreground window and emits `doom-due` the first tick
+// a browser lands on a doomscroll site, with the screen point of its tab strip.
+// The ghost then does it physically: goes angry, glides up to the tab, closes it
+// with Ctrl+W, and drifts home. No bubble, no text — the flight IS the warning,
+// and it's also the grace period: Rust re-checks what's in front before sending
+// the key, so switching away mid-flight spares the tab.
+const { getCurrentWindow, PhysicalPosition } = window.__TAURI__.window;
+const FLY_MS = 900, BACK_MS = 700;
+let flying = false;
+let doomOff = localStorage.getItem("doomOff") === "1";
+listen("doom-toggle", (e) => { doomOff = !e.payload; localStorage.setItem("doomOff", doomOff ? "1" : "0"); });
+
+// Smoothstep between two window positions. Awaiting each setPosition paces the
+// loop on the IPC round-trip, so there's no timer left running if it throws.
+async function glide(w, from, to, ms) {
+  const t0 = performance.now();
+  for (;;) {
+    const k = ms > 0 ? Math.min(1, (performance.now() - t0) / ms) : 1;
+    const e = k * k * (3 - 2 * k);
+    await w.setPosition(new PhysicalPosition(
+      Math.round(from.x + (to.x - from.x) * e),
+      Math.round(from.y + (to.y - from.y) * e)));
+    if (k >= 1) return;
+    await new Promise(requestAnimationFrame);
+  }
+}
+console.assert(Math.round(0.5 * 0.5 * (3 - 2 * 0.5) * 100) === 50, "smoothstep is symmetric at the midpoint");
+
+listen("doom-due", async (e) => {
+  if (doomOff || flying) return;
+  flying = true;
+  wake();
+  const w = getCurrentWindow();
+  try {
+    // reduced motion: no swooping, just appear on the tab and be done with it
+    const ms = reduceMotion.matches ? 0 : FLY_MS;
+    const home = await w.outerPosition();
+    const scale = devicePixelRatio; // == the window's scale factor, and needs no capability
+    // land the GHOST on the tab, not the window's corner — the sprite sits in the
+    // bottom-center of a mostly-empty 240x260 box (same rect reportHit measures).
+    const r = charEl.getBoundingClientRect();
+    const target = {
+      x: Math.round(e.payload.x - (r.left + r.width / 2) * scale),
+      y: Math.round(e.payload.y - (r.top + r.height / 2) * scale),
+    };
+    window.__winposHold?.(true); // a swoop isn't a drag — don't save it as home
+    setMood("angry"); // lights #flames
+    await glide(w, home, target, ms);
+    await invoke("close_doom_tab");
+    await new Promise((done) => setTimeout(done, 350)); // beat, so you see it land
+    await glide(w, target, home, reduceMotion.matches ? 0 : BACK_MS);
+    setMood("normal");
+  } catch (err) {
+    // never strand the ghost mid-flight on a failed move
+    setMood("normal");
+  } finally {
+    window.__winposHold?.(false);
+    flying = false;
+  }
+});
+
 // Rust found a newer GitHub release — show a one-off "update ready" bubble.
 listen("update-available", (e) => {
   enqueue({ id: UPDATE_ID, label: `✨ v${e.payload} ready — click to update` });

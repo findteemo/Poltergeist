@@ -54,6 +54,22 @@ jobs:
           COPYFILE_DISABLE=1 tar -czf "dist/$(basename "$app").tar.gz" \
             -C "$BUNDLE/macos" "$(basename "$app")"
           ls -la dist/
+          # Digests, into the log AND the run summary. Keeping the key off CI is
+          # pointless if the dev then signs whatever bytes they happened to
+          # download — the signature is the trust boundary, so there has to be
+          # something to check the download against. The run page is the anchor:
+          # it is tied to this commit and this workflow run, and unlike a release
+          # asset nobody can quietly swap it afterwards.
+          shasum -a 256 dist/* | tee dist/SHA256SUMS
+          {
+            echo "### Artifact digests"
+            echo
+            echo "Match these locally before signing anything — see docs/ARCHITECTURE.md."
+            echo
+            echo '```'
+            cat dist/SHA256SUMS
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

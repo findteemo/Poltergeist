@@ -82,6 +82,11 @@ reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v Poltergeist /
 - **Nudges that stack politely** — when a second nudge lands while one is already
   on screen it chimes right away instead of waiting its turn, and the bubble shows
   a small count of how many are still queued behind it.
+- **Doomscroll guard** (Windows) — open TikTok, Instagram, or Reddit in a browser
+  and the ghost gets *angry*, floats across the screen to that window's tab, and
+  closes it. No warning text; switching away mid-flight calls it off. Toggleable
+  in settings (on by default); it only ever sends Ctrl+W to a real browser window,
+  never to your editor.
 - **Gentle chime** on each nudge (toggleable), and an adjustable ghost size.
 - **Auto-launch at login** (Windows) — toggleable in settings, survives restarts.
 - Reminders, to-dos, and your calendar settings persist to JSON files in your OS

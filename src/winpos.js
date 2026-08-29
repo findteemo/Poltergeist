@@ -57,6 +57,10 @@
   } catch (e) {}
   await rescue(); // belt and braces: also covers a window the OS placed badly
 
+  // The ghost swooping at a doomscroll tab (main.js) moves this window on purpose
+  // and puts it back; hold the save off so the swoop isn't mistaken for a drag.
+  window.__winposHold = (on) => { rescuing = !!on; };
+
   // ponytail: poll for a monitor going away mid-session — the webview has no
   // reliable display-change event. 5s, cheap bounds math, no-op while on-screen.
   setInterval(rescue, 5000);

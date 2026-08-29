@@ -3,7 +3,7 @@
 #[cfg(windows)]
 mod win;
 #[cfg(windows)]
-pub use win::{cursor_pos, make_nonactivating};
+pub use win::{cursor_pos, foreground_app, make_nonactivating, send_ctrl_w};
 
 #[cfg(target_os = "macos")]
 mod mac;

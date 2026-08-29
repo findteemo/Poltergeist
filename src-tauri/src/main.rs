@@ -2,6 +2,7 @@
 
 mod agents;
 mod calendar;
+mod doom;
 mod hooks;
 mod platform;
 mod reminders;
@@ -148,6 +149,45 @@ fn start_click_through(app: AppHandle) {
             if want != ignoring {
                 let _ = win.set_ignore_cursor_events(want);
                 ignoring = want;
+            }
+        }
+    });
+}
+
+/// The ghost's countdown ran out: close the doomscroll tab. Returns false if the
+/// user already moved on (nothing is closed then) — see doom::close_tab.
+#[tauri::command]
+fn close_doom_tab() -> bool {
+    doom::close_tab()
+}
+
+/// Poll the foreground window; the first tick that lands on a doomscroll site
+/// emits `doom-due` (with the tab strip's screen point, so the ghost knows where
+/// to fly) and disarms, so the ghost pounces once per visit instead of every 3s.
+/// Leaving the site re-arms it.
+// ponytail: 3s poll — same reason as the click-through poll, there's no event.
+#[cfg(target_os = "windows")]
+fn start_doom_watch(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let mut tick = tokio::time::interval(Duration::from_secs(3));
+        let mut armed = true;
+        loop {
+            tick.tick().await;
+            // Don't pounce before the ghost's webview is listening. `doom-due`
+            // fires once per visit, so one emitted into the void is a whole visit
+            // missed — which is exactly what happens if the app launches (or
+            // restarts) while a doomscroll tab is already in front. Non-empty hit
+            // regions mean the frontend has run its load path and is listening.
+            if app.state::<AppState>().hit.lock().unwrap().is_empty() {
+                continue;
+            }
+            match doom::current() {
+                Some((site, x, y)) if armed => {
+                    armed = false;
+                    let _ = app.emit("doom-due", serde_json::json!({ "site": site, "x": x, "y": y }));
+                }
+                Some(_) => {}
+                None => armed = true,
             }
         }
     });
@@ -550,6 +590,8 @@ fn main() {
             start_update_check(app.handle().clone());
             #[cfg(target_os = "windows")]
             start_click_through(app.handle().clone());
+            #[cfg(target_os = "windows")]
+            start_doom_watch(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -569,6 +611,7 @@ fn main() {
             load_calendar_events,
             set_calendar_visible,
             calendar_visible,
+            close_doom_tab,
             quit_app,
             agent_hook_state,
             install_agent_hook,

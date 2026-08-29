@@ -98,6 +98,15 @@ chatterEl.addEventListener("change", () => {
   emit("chatter-toggle", chatterEl.checked);
 });
 
+// doomscroll guard: the ghost closes a TikTok/Instagram/Reddit tab after a
+// 10s warning (Windows only). Same live-push pattern; default on.
+const doomEl = document.getElementById("doom");
+doomEl.checked = localStorage.getItem("doomOff") !== "1";
+doomEl.addEventListener("change", () => {
+  localStorage.setItem("doomOff", doomEl.checked ? "0" : "1");
+  emit("doom-toggle", doomEl.checked);
+});
+
 // cry timer: minutes a reminder can sit ignored before the ghost reacts.
 // Pushed live to the character window (same pattern as char-cell/chime).
 const cryEl = document.getElementById("cry");

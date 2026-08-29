@@ -44,8 +44,12 @@ No Node build step — the frontend is static files in `src/`.
   (`rrule`) over a ±window, caches `Vec<CalEvent>`. `due_nudges` turns upcoming
   events into bubble ids; `calendar.json` holds `{ url, lead_minutes }`. See the
   Google Calendar section (+ tests for due/RRULE/window).
+- `src-tauri/src/doom.rs` — the doomscroll guard: `doom_site` (pure, tested)
+  matches a foreground window against a browser list + a site list; `close_tab`
+  re-checks and sends Ctrl+W. See Doomscroll guard.
 - `src-tauri/src/platform/{win,mac}.rs` — non-activating window flags;
-  `win.rs` also has `cursor_pos()` (`GetCursorPos` FFI) for the click-through poll.
+  `win.rs` also has `cursor_pos()` (`GetCursorPos` FFI) for the click-through poll
+  and `foreground_app()` / `send_ctrl_w()` for the doomscroll guard.
 - `src/index.html|main.js|style.css` — the ghost overlay. Sprite is built
   procedurally in `buildSprite(blink, mood)`; moods
   (`normal|happy|sad|angry|writing`) drive the face. Celebrate/sad/angry logic,
@@ -90,8 +94,9 @@ No Node build step — the frontend is static files in `src/`.
   hand-rolled on stdlib `zlib`; its `console.assert` on the canonical IEND CRC is
   the self-check.
 - `src-tauri/scripts/make_latest_json.js` — generates the `latest.json` updater
-  manifest from the release's `.sig` files (see Auto-update). `--selfcheck` runs
-  its asserts.
+  manifest from the release's `.sig` files, cryptographically verifying each one
+  against the artifact and the shipped pubkey first (see Auto-update).
+  `--selfcheck` runs its asserts.
 
 ## Installer stays in sync with the app
 
@@ -151,13 +156,54 @@ timer). Clicking calls the `install_update` command → download + install +
 
 **Signing keys (already set up since v1.1):** the public key lives in
 `tauri.conf.json` → `plugins.updater.pubkey`; the private key is
-`~/.tauri/poltergeist.key` — **secret, never commit it**, and it has **no
-passphrase**. Release builds must be signed:
+`~/.tauri/poltergeist.key` — **secret, never commit it**, and it currently has
+**no passphrase**, which is the weakest link in this whole chain: anything that
+can read one file in the user profile gets permanent, unrevokable code execution
+on every install. Fixing it means rotating to a passphrase-protected key, which
+costs one transition release (see below) — a deliberate open item, not an
+oversight. Release builds must be signed:
 `TAURI_SIGNING_PRIVATE_KEY=$(cat ~/.tauri/poltergeist.key)`
 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""` then `cargo tauri build` —
 `createUpdaterArtifacts: true` makes it emit the signed `*-setup.exe` + a `.sig`
-file. (To rotate: `cargo tauri signer generate -w ~/.tauri/poltergeist.key`,
-then update the pubkey.)
+file.
+
+**Back the key up offline.** Losing it is unrecoverable in a way losing most
+secrets isn't: the pubkey is compiled into every shipped binary, so without the
+private key there is no way to ever reach an installed copy again — not to update
+it, not even to move it to a new key. Every existing user would have to reinstall
+by hand.
+
+### Rotating the signing key
+
+Rotation takes **one transition release**, and doing it the obvious way bricks
+the update channel for everyone. Existing installs verify with the pubkey that
+was compiled into *them*, so a build signed with a brand-new key is rejected by
+every copy in the field — permanently, with no way to push a fix.
+
+The order that works: ship a release that **carries the new pubkey but is signed
+with the old key**.
+
+1. Generate the new key **to a new path** — never overwrite the old one, you need
+   it for step 3 and to reach anyone who skips this release:
+   ```sh
+   cargo tauri signer generate -w ~/.tauri/poltergeist-2.key   # set a passphrase
+   ```
+2. Put the **new** pubkey in `tauri.conf.json` → `plugins.updater.pubkey`.
+3. Build the transition release signed with the **old** key
+   (`TAURI_SIGNING_PRIVATE_KEY=$(cat ~/.tauri/poltergeist.key)`), so installs in
+   the field accept it. What they install then trusts the new key.
+4. `tauri.conf.json` now holds the new pubkey while the artifacts are signed with
+   the old one, so tell the manifest generator which key to verify against:
+   ```sh
+   node scripts/make_latest_json.js --pubkey "<OLD pubkey base64>" …
+   ```
+5. From the **next** release on, sign with the new key and drop `--pubkey`.
+
+Keep the old key (offline) afterwards: anyone who never took the transition
+release is still on the old trust root. And note what rotation does *not* do — if
+the old key leaked, the attacker can still sign updates for everyone who hasn't
+installed the transition release yet. Rotation shrinks the blast radius; it can't
+un-trust a key that's already baked into a binary.
 
 **Each release, in order** (the signing key never leaves this machine):
 
@@ -166,21 +212,37 @@ then update the pubkey.)
    workflow; a draft fires nothing.
 2. Wait for the workflow. It attaches `Poltergeist_x.y.z_universal.dmg` and
    `Poltergeist.app.tar.gz` (unsigned — CI has no key).
-3. Download that tarball, sign it, and generate the manifest:
+3. Download that tarball and **check its digest against the run summary before
+   signing it.** Keeping the key out of CI buys nothing if you then apply the
+   trusted signature to whatever bytes you happened to download — signing *is*
+   the trust decision, and it's the one step no signature can protect. The
+   workflow prints `sha256` for every artifact into its run page:
+   ```sh
+   shasum -a 256 Poltergeist.app.tar.gz   # must match the run summary, exactly
+   ```
+4. Sign it and generate the manifest:
    ```sh
    cargo tauri signer sign -f ~/.tauri/poltergeist.key -p "" Poltergeist.app.tar.gz
    node scripts/make_latest_json.js --notes "…" \
      --win  target/release/bundle/nsis/Poltergeist_x.y.z_x64-setup.exe.sig \
      --mac  Poltergeist.app.tar.gz.sig
    ```
-4. Upload the resulting `latest.json` as a release asset. **Last step** — until
+5. Upload the resulting `latest.json` as a release asset. **Last step** — until
    it's up, nobody is offered the update, which is the safe failure mode.
 
 `make_latest_json.js` exists because a hand-written manifest is how you ship a
 stale or mismatched signature: every client rejects the update, and the fix only
-reaches people who reinstall by hand. It base64-decodes each `.sig` and refuses
-anything that isn't a minisign signature. Self-check: `--selfcheck`. Omit `--mac`
-for a Windows-only release.
+reaches people who reinstall by hand. It **fully verifies** each signature before
+writing the manifest — not "does this look like a signature" (a `.sig` left over
+from the previous release decodes perfectly), but the real check the clients do:
+parse the minisign blob, confirm its key id matches the pubkey the shipped
+binaries trust, BLAKE2b-hash the artifact sitting next to the `.sig` and Ed25519-
+verify against it, then verify the trusted comment. It also refuses a filename
+that doesn't match the URL it's about to publish, which catches signing last
+version's installer. Node's `crypto` has Ed25519 and BLAKE2b, so no deps.
+Self-check: `--selfcheck` (round-trips an ephemeral key, then proves a wrong-key,
+a stale and a junk signature are all rejected). Omit `--mac` for a Windows-only
+release; `--pubkey` is only for a rotation release (see above).
 
 **macOS auto-update** works exactly like Windows — same check → download → verify
 → install → restart path, and `download()` runs `verify_signature` on the bytes
@@ -298,6 +360,42 @@ reduced-motion, still running `then`).
   `scripts/test_hats.js`.
 - Reduced-motion: no yawn/startle/zzz-drift; doze still lands on a static dimmed
   sleeping face with a static `z z z`.
+
+## Doomscroll guard
+
+Open TikTok / Instagram / Reddit in a browser and the ghost goes **angry**, glides
+across the screen to that window's tab strip, closes the tab with Ctrl+W, and
+drifts home. **No bubble, no text** — the flight is the whole message. Windows-only
+(same reason as click-through: no portable way to read the foreground window's
+process). Off switch: the settings **close doomscroll tabs** checkbox (`doomOff` in
+localStorage, pushed live via `doom-toggle`, default **on**).
+
+- `start_doom_watch` (`main.rs`, 3s tokio tick) asks `doom::current()` what's in
+  front. The first tick that lands on a doomscroll site emits `doom-due`
+  (`{site, x, y}` — the tab strip's screen point) and **disarms**; leaving the site
+  re-arms it, so the ghost pounces once per visit, not every 3 seconds.
+- `doom::doom_site(exe, title)` matches the window title (= the active tab title)
+  against a short site list — but **only** if the exe is in `BROWSERS`. The exe
+  check is the safety rail: a title alone can't tell an Instagram tab from
+  `instagram.js` open in VS Code, and a stray Ctrl+W in an editor is lost work.
+  Both lists live at the top of `doom.rs`; the site list is deliberately short and
+  unambiguous (a loose word like "shorts" fires on someone shopping for shorts).
+- The target point comes from `platform/win.rs` — `GetWindowRect` plus
+  `GetDpiForWindow`, so it's scaled by the **browser's** DPI, not the ghost's
+  (they can sit on different monitors). `TAB_X`/`TAB_Y` aim at the first tab;
+  pinpointing the *active* tab would need UI Automation (`// ponytail:`).
+- Frontend (`main.js`, the `doom-due` listener): `glide()` walks the window from
+  its current spot to the tab and back on a smoothstep, awaiting each
+  `setPosition` so the loop paces itself on the IPC round-trip and leaves no timer
+  behind. It aims the **ghost sprite**, not the window corner — the sprite fills
+  only the bottom-center of the 240x260 box, so the target is offset by
+  `charEl.getBoundingClientRect()` x `devicePixelRatio` (not `scaleFactor()`,
+  which isn't in `capabilities/default.json`).
+- The swoop calls `window.__winposHold(true)` (exposed by `winpos.js`) so the trip
+  isn't saved as the window's remembered home, and always releases it in `finally`.
+- **`close_doom_tab` re-checks the foreground before sending the key.** The flight
+  is also the grace period: switch away mid-swoop and nothing is closed. That plus
+  the settings toggle are the only escapes — there's no bubble to click any more.
 
 ## Focus timer (Pomodoro)
 
@@ -448,6 +546,23 @@ bubble**.
   makes anything with access to the key (a repo secret, a mutable action tag, a
   poisoned build cache) a silent-RCE path into every user's machine, which is a
   much worse failure than a slower release. Sign locally, pin by SHA, no cache.
+- **Signing a CI-built artifact is the trust decision — check the digest first.**
+  Keeping the key off CI is worth nothing if the release flow then applies the
+  trusted signature to whatever bytes came down from a workflow run. Nothing
+  downstream can catch it: the signature will be perfectly valid, over the wrong
+  code. The workflow prints `sha256` of every artifact into its run summary;
+  match it before `signer sign` (release step 3).
+- **A signature that parses is not a signature that verifies.** The old
+  `make_latest_json.js` only checked that a `.sig` base64-decoded to something
+  starting with `untrusted comment:` — which a stale `.sig` from the previous
+  release does, perfectly. Shipping that manifest breaks auto-update for every
+  install, and the fix reaches only people who reinstall by hand. It now does the
+  real Ed25519 + BLAKE2b check against the artifact and the shipped pubkey.
+- **Never rotate the updater key by just swapping the pubkey.** Installs in the
+  field verify with the key compiled into them, so a build signed with a fresh
+  key is rejected by every one of them, forever — you have no channel left to
+  push a correction. Rotation needs a transition release signed with the OLD key;
+  see "Rotating the signing key".
 - **Moving the project folder breaks `target/`** — Tauri bakes absolute paths into
   codegen. Run `cargo clean` (or delete `target/`) after a move or the build fails
   with a path error.
@@ -467,6 +582,20 @@ bubble**.
   bottom-center of a mostly-empty 240×260 window, so a rect clipping the screen by
   its empty top edge passes an overlap test while showing nothing. `winpos.js`
   tests the window's **center** instead.
+- **A nudge that fires once per visit needs someone listening.** `doom-due` emits
+  on the first tick that sees a doomscroll site and then disarms — so if the
+  webview hasn't finished loading `main.js` yet, that whole visit is silently
+  skipped, which is exactly what happens when the app launches (or a dev rebuild
+  restarts it) while a TikTok tab is already in front. Presents as "it worked a
+  minute ago and now it does nothing, with no error anywhere". `start_doom_watch`
+  gates on `AppState.hit` being non-empty — the frontend fills it on load, so it
+  doubles as a free "the webview is up" signal.
+- **Never synthesize a keystroke without checking what has focus.** The
+  doomscroll guard's Ctrl+W is sent to the foreground window, whatever it is —
+  so both the detection (`doom_site` requires a browser exe, not just a matching
+  title) and the trigger (`close_tab` re-reads the foreground after the ghost's
+  countdown) gate on the process. Skip either and the ghost eventually closes a
+  file in someone's editor.
 - **Claude Desktop can't be an agent source.** The whole agent-notify path relies
   on the agent running an external command (`poltergeist.exe notify …`) at a
   lifecycle point (Stop / Notification hook). Claude **Desktop** exposes no such
