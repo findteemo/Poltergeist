@@ -71,7 +71,7 @@ fn ack_reminder(state: State<AppState>, id: String) {
             if r[pos].fire_at.is_some() {
                 r.remove(pos); // one-shot: fired once, done
             } else {
-                r[pos].last_fired = now;
+                reminders::advance_last_fired(&mut r[pos], now);
             }
         }
         store::save(&state.path, &r);
@@ -376,6 +376,15 @@ fn start_scheduler(app: AppHandle) {
         let mut tick = tokio::time::interval(Duration::from_secs(10));
         loop {
             tick.tick().await;
+            // Nobody is listening until the char webview has loaded main.js, and a
+            // nudge emitted into the void is lost for good (`active` is only cleared
+            // by an ack; inbox notes are deleted on drain). The frontend fills `hit`
+            // on load, so it doubles as a "the webview is up" signal — same guard as
+            // start_doom_watch. Matters every launch: the app auto-starts at login
+            // with reminders already overdue, and `interval`'s first tick is instant.
+            if app.state::<AppState>().hit.lock().unwrap().is_empty() {
+                continue;
+            }
             let now = now_secs();
             let due: Vec<Reminder> = {
                 let state = app.state::<AppState>();
@@ -435,6 +444,15 @@ fn start_inbox_watch(app: AppHandle) {
         let mut tick = tokio::time::interval(Duration::from_secs(2));
         loop {
             tick.tick().await;
+            // Nobody is listening until the char webview has loaded main.js, and a
+            // nudge emitted into the void is lost for good (`active` is only cleared
+            // by an ack; inbox notes are deleted on drain). The frontend fills `hit`
+            // on load, so it doubles as a "the webview is up" signal — same guard as
+            // start_doom_watch. `interval`'s first tick is instant, so without this
+            // a note written just before launch is drained, deleted, and never shown.
+            if app.state::<AppState>().hit.lock().unwrap().is_empty() {
+                continue;
+            }
             let dir = {
                 let path = app.state::<AppState>().path.clone();
                 agents::inbox_dir(path.parent().unwrap_or(&path))

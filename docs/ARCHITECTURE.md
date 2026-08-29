@@ -582,7 +582,7 @@ bubble**.
   bottom-center of a mostly-empty 240×260 window, so a rect clipping the screen by
   its empty top edge passes an overlap test while showing nothing. `winpos.js`
   tests the window's **center** instead.
-- **A nudge that fires once per visit needs someone listening.** `doom-due` emits
+- **A nudge that fires once needs someone listening.** `doom-due` emits
   on the first tick that sees a doomscroll site and then disarms — so if the
   webview hasn't finished loading `main.js` yet, that whole visit is silently
   skipped, which is exactly what happens when the app launches (or a dev rebuild
@@ -590,6 +590,16 @@ bubble**.
   minute ago and now it does nothing, with no error anywhere". `start_doom_watch`
   gates on `AppState.hit` being non-empty — the frontend fills it on load, so it
   doubles as a free "the webview is up" signal.
+  **The same trap bites the scheduler and the agent inbox**, and there it's the
+  normal case, not an edge one: `tokio::time::interval`'s **first `tick()`
+  completes immediately**, inside `setup`, long before the webview has loaded
+  `main.js` and registered its `reminder-due` listener. The app auto-starts at
+  login with reminders already overdue (intervals are wall-clock), so the first
+  nudge of the day was emitted into the void — and since `active` is only cleared
+  by an ack, that reminder then stayed silent for the whole session. Inbox notes
+  are worse: `drain_inbox` deletes them, so the agent ping was just gone.
+  `start_scheduler` and `start_inbox_watch` now carry the same `hit.is_empty()`
+  guard. Presents as "the reminders just stopped" with nothing in any log.
 - **Never synthesize a keystroke without checking what has focus.** The
   doomscroll guard's Ctrl+W is sent to the foreground window, whatever it is —
   so both the detection (`doom_site` requires a browser exe, not just a matching
@@ -609,9 +619,20 @@ bubble**.
 
 One 10s tokio tick loop in `main.rs`. An interval reminder fires when
 `now - last_fired >= interval_secs`; a scheduled one fires once at its `fire_at`.
-Each is held in an `active` set (shown, not re-fired) until acked. Ack sets
-`last_fired = now` (or removes a one-shot) and persists. Defaults stagger first
-fires by 1 min each.
+Each is held in an `active` set (shown, not re-fired) until acked. Ack removes a
+one-shot, or advances a recurring one via `reminders::advance_last_fired`
+(tested), and persists. Defaults stagger first fires by 1 min each.
+
+Ack advances `last_fired` to the **nearest slot on the reminder's own cadence**,
+not to the moment you clicked. `last_fired = now` made the real period
+`interval + time-to-notice`, which compounds — every late ack pushes the next
+fire later, so a 30-min reminder wanders through the hour, and anything queued
+behind an unacked bubble has its clock frozen until you get to it. Snapping to
+the nearest slot bounds the drift at half an interval, and (unlike snapping to
+the *last* slot) never re-nudges sooner than that after a very late ack.
+
+Both this loop and `start_inbox_watch` skip a tick while `AppState.hit` is empty
+— see the "nudge that fires once" gotcha.
 
 `save_reminders` guards its trust boundary: intervals clamp to ≥60s, and
 `preserve_last_fired` (reminders.rs, tested) keeps the backend's firing state

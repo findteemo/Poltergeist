@@ -37,6 +37,23 @@ pub fn is_due(r: &Reminder, now: i64) -> bool {
     }
 }
 
+/// Move a recurring reminder's clock forward after an ack, staying anchored to
+/// its original cadence. Setting `last_fired = now` makes the real period
+/// `interval + however long you took to notice`, and that compounds: every late
+/// ack pushes the next fire later, so a 30-min reminder wanders through the
+/// hour. Snapping to the *nearest* slot instead keeps drift bounded at half an
+/// interval and never re-nudges sooner than that after an ack (flooring to the
+/// last slot would, for an ack near the end of an interval).
+/// `interval_secs` is `u64` straight off disk: clamp before the `i64` cast or a
+/// junk value casts negative, walks `last_fired` *backwards*, and the reminder
+/// fires every single tick forever.
+pub fn advance_last_fired(r: &mut Reminder, now: i64) {
+    let iv = r.interval_secs.clamp(1, i64::MAX as u64) as i64;
+    let elapsed = (now - r.last_fired).max(0);
+    let steps = ((elapsed + iv / 2) / iv).max(1);
+    r.last_fired = r.last_fired.saturating_add(steps.saturating_mul(iv));
+}
+
 /// Keep the scheduler's `last_fired` for reminders that already exist. The
 /// settings window's list is a snapshot loaded at app start; writing it back
 /// verbatim on save would rewind firing state (reminders fire early after any
@@ -108,6 +125,48 @@ mod tests {
         assert!(is_due(&one_shot(1000, true), now), "one-shot exactly now is due");
         assert!(!is_due(&one_shot(1100, true), now), "one-shot future not due");
         assert!(!is_due(&one_shot(900, false), now), "disabled one-shot never fires");
+    }
+
+    #[test]
+    fn advance_stays_on_cadence() {
+        let iv: i64 = 1800; // 30 min
+        // acked immediately when due: next fire exactly one interval later
+        let mut a = r(0, iv as u64, true);
+        advance_last_fired(&mut a, 1800);
+        assert_eq!(a.last_fired, 1800, "on-time ack lands on the slot");
+
+        // acked 12 min late: still on the 30-min grid, not 42 min out
+        let mut b = r(0, iv as u64, true);
+        advance_last_fired(&mut b, 1800 + 720);
+        assert_eq!(b.last_fired, 1800, "late ack keeps the original phase");
+
+        // ignored past a whole slot: skip the missed ones, don't fire instantly
+        let mut c = r(0, iv as u64, true);
+        advance_last_fired(&mut c, 5000);
+        assert!(!is_due(&c, 5000), "not due again the moment it's acked");
+
+        // an ack near the end of an interval must not re-nudge a minute later
+        let mut d = r(0, iv as u64, true);
+        let now = 1800 + 1740; // 29 min after it was shown
+        advance_last_fired(&mut d, now);
+        assert!(d.last_fired + iv - now >= iv / 2, "at least half an interval of quiet");
+
+        // repeated late acks must not accumulate drift
+        let mut e = r(0, iv as u64, true);
+        let mut t = 0;
+        for _ in 0..10 {
+            t += iv + 600; // 10 min late, every time
+            advance_last_fired(&mut e, t);
+        }
+        assert_eq!(e.last_fired % iv, 0, "still on the original grid after 10 late acks");
+
+        // degenerate input can't wedge the reminder into re-firing forever
+        for junk in [0u64, u64::MAX] {
+            let mut f = r(1000, junk, true);
+            advance_last_fired(&mut f, 500);
+            assert!(f.last_fired > 1000, "always moves forward (interval {junk})");
+            assert!(!is_due(&f, 500), "never left due (interval {junk})");
+        }
     }
 
     #[test]
